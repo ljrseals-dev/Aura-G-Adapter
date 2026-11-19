@@ -3,7 +3,7 @@
 **Assessment date:** 2026-11-18  
 **Target branch:** `main`  
 **Repair branch:** `repair/aura-g-processing-corrections`  
-**State:** Experimental; source-level repair work in progress.
+**State:** Experimental; adapter regression suite passes on the repair branch; full-pipeline validation remains open.
 
 ## Repository baseline
 
@@ -36,14 +36,11 @@ The repository did not have a root `README.md` at the inspected baseline. `READM
 
 ## Verification status
 
-**Not yet executed in this environment.** The GitHub connector can create and inspect repository changes, but it does not provide a local Python runtime for running this test suite against the branch. No passing test result is claimed here.
+**Passed in GitHub Actions on 2026-11-19.** Run 44461295579 executed `python -m unittest -v test_aura_g_adapter` on commit `902d39139c7953372015530663183be637c1132c`: **12 tests passed**. The run reported 10/10 synthetic note matches (F1 1.00), 0.01-cent worst-case open/fretted tuning error, and 32.3 dB decay over one second for the T60=2 s test.
 
-The next verification step is to run:
+The first CI run exposed a real transcription defect: log-pitch value zero was treated as silence, although zero is the valid A4 (440 Hz) encoding. The transcription engine, adapter, and physical pipeline now decode A4 correctly; a dedicated regression test covers A4 followed by a dynamics-gated silent frame.
 
-```sh
-python -m pip install numpy scipy
-python -m unittest -v test_aura_g_adapter
-```
+This is adapter-level regression evidence only. It does not establish full-pipeline compatibility, trained-model quality, or real-time performance.
 
 The full pipeline additionally needs compatible PyTorch and torchaudio versions. CI should run the adapter tests and separately add an import/smoke test for the full pipeline once those dependencies are provisioned.
 
