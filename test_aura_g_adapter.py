@@ -547,6 +547,7 @@ class T(unittest.TestCase):
         output = model.synthesize_sequence([bus], 220)
         self.assertEqual(output.shape, (220,))
         self.assertTrue(np.all(np.isfinite(output)))
+        model.string.f0 = 12543.0
         with self.assertRaises(ValueError):
             model.string.pluck(fret=0, pluck_pos=0.3, dynamics=0.8)
 
