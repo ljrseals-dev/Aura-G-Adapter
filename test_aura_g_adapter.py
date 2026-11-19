@@ -332,6 +332,29 @@ class T(unittest.TestCase):
             A.aura_g_transcribe(np.zeros(44100), 44100, hop=441)
             analyzer.assert_called_once_with(sr=48000, hop=480)
 
+    def test_blind_extractor_short_apply_bypasses_without_silencing(self):
+        extractor = BlindExtractor(n_fft=64, hop=16)
+        training = np.random.default_rng(7).normal(size=256)
+        extractor.fit(training, training * 0.5)
+        short = np.linspace(-0.2, 0.2, 16)
+        np.testing.assert_array_equal(extractor.apply(short), short)
+
+    def test_complex_audio_is_rejected_instead_of_discarded(self):
+        with self.assertRaises(ValueError):
+            A.aura_g_transcribe(np.array([1 + 1j, 0j]), SR)
+        with self.assertRaises(ValueError):
+            FrontEndAnalyzer(sr=SR).process(np.array([1 + 1j, 0j]))
+        with self.assertRaises(ValueError):
+            B.transcribe(np.array([1 + 1j, 0j]), SR)
+        with self.assertRaises(ValueError):
+            BlindExtractor(n_fft=4). _stft(np.array([1 + 1j, 0j, 0j, 0j]))
+
+    def test_latent_bus_rejects_complex_values(self):
+        with self.assertRaises(ValueError):
+            LatentBus(vector=np.ones(32, dtype=np.complex128))
+        with self.assertRaises(ValueError):
+            LatentBus().write_expression(np.ones(8, dtype=np.complex128))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
