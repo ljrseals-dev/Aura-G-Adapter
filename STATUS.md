@@ -84,13 +84,13 @@ A second source-level review found defects outside the earlier smoke-test covera
 - **Sample-rate correctness:** Transcription hop size is rescaled with the audio when converting to 48 kHz. YIN bounds must remain below Nyquist. Fractional sample clocks are rejected at pipeline/transcriber boundaries.
 - **Physical synthesis:** The physical model now consumes the full latent pitch/onset sequence instead of using only the first frame. It does not retrigger the string at every processing block, retains waveguide state, and carries body-resonator filter state across calls. Invalid pitch frames clear active-pitch state.
 - **DDSP filters:** The output transformer now uses actual RBJ high-pass and low-pass biquad responses rather than two peaking-EQ dips. The power-amp envelope time is sample-rate-derived; DDSP validates latent controls and preserves gradient flow in the exercised path.
-- **Other boundaries:** The latent bus vector property is copy-only; mixer weights are checked before blending and latent macros are bounded; complex-valued audio is rejected rather than silently cast to real; short blind-extractor clips bypass instead of becoming silence; tract controls, buffer shapes, and formant-analysis sizes are validated; zero-velocity notes render silence.
-- **Demo:** Empty transcription output no longer causes the summary print to fail.
+- **Other boundaries:** The latent bus vector property is copy-only; mixer weights are checked before blending and latent macros are bounded; complex-valued audio is rejected rather than silently cast to real; short blind-extractor clips bypass instead of becoming silence; overlap-add now covers both clip edges and rejects hop sizes that leave gaps; tract controls, buffer shapes, and formant-analysis sizes are validated; zero-velocity notes render silence.
+- **RNN and demo boundaries:** GRU FX rejects non-finite audio/latent tensors and unsupported dtypes. The demo is import-safe and correctly recenters unsigned PCM (including 8-bit WAV) before downmixing and normalization; empty transcription output is handled safely.
 
 ### Latest verification
 
-GitHub Actions run [#44469185005](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44469185005) passed on commit `287d7bba642b0f0fecf91fd17e6aea469af2ff4d`:
-- **45 adapter regression tests passed.**
-- **8 CPU PyTorch/torchaudio pipeline tests passed.**
+GitHub Actions run [#44469748793](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44469748793) passed on commit `242f3778b967aad4f24fbda0637da8e74218e277`:
+- **50 adapter regression tests passed.**
+- **9 CPU PyTorch/torchaudio pipeline tests passed.**
 
 This is automated regression evidence for the tested inputs, not proof that all possible defects are eliminated. The project remains experimental; trained-checkpoint quality, real-guitar recordings, polyphonic transcription, and real-time behavior still require independent validation.
