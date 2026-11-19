@@ -4,34 +4,45 @@ from scipy.signal import find_peaks
 from scipy.ndimage import maximum_filter1d
 from .latent_bus import LatentBus
 
+
 def yin_pitch(frame, sr, fmin=70.0, fmax=1200.0, threshold=0.15):
     """YIN fundamental frequency estimator (simplified, probabilistic via CMND)."""
-    frame = frame - np.mean(frame)
-    tau_min = int(sr / fmax)
-    tau_max = int(sr / fmin)
-    if tau_max >= len(frame):
+    frame = np.asarray(frame, dtype=np.float64)
+    if frame.ndim != 1 or len(frame) < 4 or not np.all(np.isfinite(frame)):
         return 0.0, 0.0
-    diff = np.zeros(tau_max)
-    for tau in range(1, tau_max):
-        d = frame[:len(frame) - tau] - frame[tau:]
-        diff[tau] = np.sum(d * d)
-    cmnd = np.ones(tau_max)
+    if sr <= 0 or fmin <= 0 or fmax <= fmin:
+        raise ValueError("sr and pitch bounds must be positive, with fmax > fmin")
+    frame = frame - np.mean(frame)
+    tau_min = max(2, int(sr / fmax))
+    tau_max = min(int(sr / fmin), len(frame) - 1)
+    if tau_max <= tau_min:
+        return 0.0, 0.0
+    diff = np.zeros(tau_max + 1)
+    for tau in range(1, tau_max + 1):
+        d = frame[:-tau] - frame[tau:]
+        diff[tau] = np.dot(d, d)
+    cmnd = np.ones(tau_max + 1)
     running = 0.0
-    for tau in range(1, tau_max):
+    for tau in range(1, tau_max + 1):
         running += diff[tau]
         cmnd[tau] = diff[tau] * tau / running if running > 0 else 1.0
-    peaks, _ = find_peaks(-cmnd[tau_min:tau_max])
-    peaks = peaks + tau_min
-    candidates = [(cmnd[p], p) for p in peaks if cmnd[p] < threshold]
-    if not candidates:
+    candidates = np.flatnonzero(cmnd[tau_min:tau_max + 1] < threshold) + tau_min
+    if not len(candidates):
         return 0.0, 0.0
-    _, tau = min(candidates)
-    f0 = sr / tau
-    conf = 1.0 - cmnd[tau]
-    return f0, conf
+    tau = int(candidates[0])
+    while tau + 1 <= tau_max and cmnd[tau + 1] < cmnd[tau]:
+        tau += 1
+    a, b, c = cmnd[tau - 1], cmnd[tau], cmnd[min(tau + 1, tau_max)]
+    den = a - 2 * b + c
+    refined = tau + (0.5 * (a - c) / den if den != 0 else 0.0)
+    return (sr / refined, float(np.clip(1.0 - b, 0.0, 1.0))) if refined > 0 else (0.0, 0.0)
+
 
 def spectral_features(frame, sr):
     """Return timbre descriptors normalized to [0,1]."""
+    frame = np.asarray(frame, dtype=np.float64)
+    if frame.ndim != 1 or len(frame) == 0 or not np.all(np.isfinite(frame)):
+        raise ValueError("frame must be a non-empty finite mono array")
     spec = np.abs(np.fft.rfft(frame * np.hanning(len(frame))))
     freqs = np.fft.rfftfreq(len(frame), 1 / sr)
     total = spec.sum() + 1e-9
@@ -40,7 +51,7 @@ def spectral_features(frame, sr):
     rolloff_idx = np.searchsorted(cumsum, 0.85)
     rolloff = float(freqs[min(rolloff_idx, len(freqs) - 1)]) / (sr / 2)
     flatness = float(np.exp(np.mean(np.log(spec + 1e-9))) / (np.mean(spec) + 1e-9))
-    zcr = float(np.mean(np.abs(np.diff(np.sign(frame)))) / 2)
+    zcr = float(np.mean(np.abs(np.diff(np.sign(frame))) / 2)) if len(frame) > 1 else 0.0
     ac = np.correlate(frame, frame, mode='full')[len(frame) - 1:]
     ac /= (ac[0] + 1e-9)
     harmonic_ratio = float(np.clip(ac[1:].max(), 0, 1)) if len(ac) > 1 else 0.0
@@ -53,13 +64,13 @@ def spectral_features(frame, sr):
                 harmonic_ratio=harmonic_ratio, even_odd=even_odd,
                 attack_slope=attack_slope, sustain=sustain)
 
+
 class FrontEndAnalyzer:
     def __init__(self, sr=48000, hop=480, win=2048, fmin=70.0, fmax=1200.0):
-        self.sr = sr
-        self.hop = hop
-        self.win = win
-        self.fmin = fmin
-        self.fmax = fmax
+        if sr <= 0 or hop <= 0 or win < 4 or fmin <= 0 or fmax <= fmin:
+            raise ValueError("invalid sample rate, hop, window, or pitch bounds")
+        self.sr, self.hop, self.win = int(sr), int(hop), int(win)
+        self.fmin, self.fmax = float(fmin), float(fmax)
         self.prev_f0 = 0.0
         self._prev_mag = None
 
@@ -73,13 +84,18 @@ class FrontEndAnalyzer:
         return flux
 
     def process(self, audio):
-        """Yield LatentBus snapshots at hop rate."""
-        n_hops = (len(audio) - self.win) // self.hop
+        """Yield LatentBus snapshots at hop rate; short input yields no frames."""
+        audio = np.asarray(audio, dtype=np.float64)
+        if audio.ndim != 1:
+            raise ValueError("audio must be a mono, one-dimensional array")
+        if not np.all(np.isfinite(audio)):
+            raise ValueError("audio contains NaN or infinite samples")
+        if len(audio) < self.win:
+            return
+        n_hops = 1 + (len(audio) - self.win) // self.hop
         onset_env = np.zeros(n_hops)
         f0s = np.zeros(n_hops)
-        confs = np.zeros(n_hops)
         timbre_feats = []
-
         for i in range(n_hops):
             start = i * self.hop
             frame = audio[start:start + self.win]
@@ -89,33 +105,25 @@ class FrontEndAnalyzer:
                 f0s[i] = f0
             else:
                 f0s[i] = self.prev_f0
-            confs[i] = conf
             onset_env[i] = self._superflux_onset(frame)
             timbre_feats.append(spectral_features(frame, self.sr))
-
         onset_thresh = np.mean(onset_env) + 0.8 * np.std(onset_env)
         onsets = (onset_env > onset_thresh).astype(np.float32)
-
         for i in range(n_hops):
             bus = LatentBus(sample_rate=self.sr, hop=self.hop)
             f0 = f0s[i]
             f0_log = np.log2(f0 / 440.0 + 1e-9) / 6.0 if f0 > 0 else 0.0
             bend = 0.0
             if i > 0 and f0s[i - 1] > 0 and f0 > 0:
-                bend = np.clip((np.log2(f0 / f0s[i - 1])) * 12, -2, 2) / 2.0
+                bend = np.clip(np.log2(f0 / f0s[i - 1]) * 12, -2, 2) / 2.0
             window = f0s[max(0, i - 25):i + 1]
             vib_depth = float(np.std(window)) / (np.mean(window) + 1e-9)
-            vib_rate = 5.0 / 10.0
-            dynamics = float(np.clip(np.sqrt(np.mean(audio[i * self.hop:
-                                                          i * self.hop + self.win] ** 2)) * 3, 0, 1))
+            dynamics = float(np.clip(np.sqrt(np.mean(audio[i * self.hop:i * self.hop + self.win] ** 2)) * 3, 0, 1))
             pluck_pos = 0.5
             palm_mute = float(1.0 - min(1.0, timbre_feats[i]['centroid'] * 3))
-
-            bus.write_pitch_gesture(f0_log, float(onsets[i]), float(bend),
-                                    vib_rate, vib_depth, pluck_pos,
-                                    dynamics, palm_mute)
+            bus.write_pitch_gesture(f0_log, float(onsets[i]), float(bend), 0.5,
+                                    vib_depth, pluck_pos, dynamics, palm_mute)
             t = timbre_feats[i]
             bus.write_timbre(t['centroid'], t['rolloff'], t['flatness'], t['zcr'],
-                             t['harmonic_ratio'], t['even_odd'],
-                             t['attack_slope'], t['sustain'])
+                             t['harmonic_ratio'], t['even_odd'], t['attack_slope'], t['sustain'])
             yield bus
