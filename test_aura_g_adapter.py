@@ -529,6 +529,7 @@ class T(unittest.TestCase):
     def test_talkbox_renderers_accept_generators_and_empty_iterables(self):
         self.assertEqual(A.render_talkbox_aura(iter(()), tail=0.0).size, 0)
         self.assertEqual(B.render_talkbox(iter(()), tail=0.0).size, 0)
+        self.assertEqual(B.render_talkbox([B.Note(0.0, 0.0, 60, 90)], tail=0.0).size, 0)
         note = B.Note(0.0, 0.05, 69, 90)
         rendered_aura = A.render_talkbox_aura(iter([note]), tail=0.0)
         rendered_bridge = B.render_talkbox(iter([note]), tail=0.0)
