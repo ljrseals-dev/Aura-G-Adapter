@@ -4,8 +4,11 @@ import numpy as np
 
 class DigitalWaveguideString:
     def __init__(self, sr=48000, f0=196.0, n_strings=6, fret_damping_scale=1.0):
-        if sr <= 0 or f0 <= 0 or fret_damping_scale < 0:
-            raise ValueError("sr and f0 must be positive; damping scale non-negative")
+        if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
+                not np.isfinite(f0) or f0 <= 0 or
+                not isinstance(n_strings, (int, np.integer)) or n_strings <= 0 or
+                not np.isfinite(fret_damping_scale) or fret_damping_scale < 0):
+            raise ValueError("sr and n_strings must be positive integers; f0 finite positive; damping scale finite non-negative")
         self.sr, self.f0 = int(sr), float(f0)
         self.n_strings = int(n_strings)
         self.fret_damping_scale = float(fret_damping_scale)
@@ -19,8 +22,11 @@ class DigitalWaveguideString:
         return float(np.clip(1.0 - 0.05 * fret * self.fret_damping_scale, 0.0, 1.0))
 
     def pluck(self, fret=0, pluck_pos=0.5, dynamics=1.0):
-        if not 0 < pluck_pos < 1 or not 0 <= dynamics <= 1:
-            raise ValueError("pluck_pos must be in (0, 1) and dynamics in [0, 1]")
+        if not isinstance(fret, (int, np.integer)) or fret < 0:
+            raise ValueError("fret must be a non-negative integer")
+        if (not np.isfinite(pluck_pos) or not 0 < pluck_pos < 1 or
+                not np.isfinite(dynamics) or not 0 <= dynamics <= 1):
+            raise ValueError("pluck_pos must be finite in (0, 1) and dynamics finite in [0, 1]")
         frequency = self.f0 * 2 ** (fret / 12.0)
         self.delay = max(2, int(round(self.sr / frequency)))
         idx = int(np.clip(round(pluck_pos * self.delay), 1, self.delay - 1))
@@ -31,8 +37,8 @@ class DigitalWaveguideString:
         self._cursor = 0
 
     def step(self, n_samples, fret=0):
-        if n_samples < 0:
-            raise ValueError("n_samples must be non-negative")
+        if not isinstance(n_samples, (int, np.integer)) or n_samples < 0:
+            raise ValueError("n_samples must be a non-negative integer")
         if len(self.buffer) < 2:
             self.buffer = np.pad(self.buffer, (0, 2 - len(self.buffer)))
         output = np.empty(n_samples, dtype=np.float64)
@@ -50,8 +56,8 @@ class DigitalWaveguideString:
 class BodyResonance:
     """Reduced-order modal body filter."""
     def __init__(self, sr=48000, modes=None):
-        if sr <= 0:
-            raise ValueError("sample rate must be positive")
+        if not isinstance(sr, (int, np.integer)) or sr <= 0:
+            raise ValueError("sample rate must be a positive integer")
         self.sr = int(sr)
         self.modes = modes if modes is not None else [
             [100, 5, 3], [200, 6, 2], [400, 8, 1],
