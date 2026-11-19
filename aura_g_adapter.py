@@ -51,7 +51,10 @@ _FE.yin_pitch = fixed_yin
 
 def aura_g_transcribe(audio, sr, hop=480, min_gap=0.10, min_dur=0.06, gate=0.02):
     """AURA-G front end -> monophonic notes with onset debouncing and durations."""
-    x = np.asarray(audio, dtype=np.float64)
+    raw = np.asarray(audio)
+    if np.iscomplexobj(raw):
+        raise ValueError("audio must be real-valued")
+    x = np.asarray(raw, dtype=np.float64)
     if x.ndim != 1:
         raise ValueError("audio must be a mono, one-dimensional array")
     if not np.all(np.isfinite(x)):
