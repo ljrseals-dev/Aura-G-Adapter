@@ -271,6 +271,67 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             mixer.blend(np.zeros(4), np.zeros(4), np.zeros(4), 3.5)
 
+    def test_midi_meta_lengths_use_variable_length_quantities(self):
+        text_meta = bytes([0xFF, 0x01]) + G._vlq(128) + (b"A" * 128)
+        events = [
+            (0, text_meta),
+            (0, bytes([0x90, 60, 90])),
+            (480, bytes([0x80, 60, 0])),
+            (0, bytes([0xFF, 0x2F, 0x00])),
+        ]
+        body = b"".join(G._vlq(delta) + event for delta, event in events)
+        track = b"MTrk" + struct.pack(">I", len(body)) + body
+        header = b"MThd" + struct.pack(">IHHH", 6, 0, 1, 480)
+        recovered = G._read_midi_impl(header + track)
+        self.assertEqual(len(recovered), 1)
+        self.assertAlmostEqual(recovered[0].dur, 0.5)
+
+    def test_midi_rejects_data_after_end_of_track(self):
+        events = [(0, bytes([0xFF, 0x2F, 0x00])), (0, bytes([0x90, 60, 90]))]
+        body = b"".join(G._vlq(delta) + event for delta, event in events)
+        track = b"MTrk" + struct.pack(">I", len(body)) + body
+        header = b"MThd" + struct.pack(">IHHH", 6, 0, 1, 480)
+        with self.assertRaises(ValueError):
+            G._read_midi_impl(header + track)
+
+    def test_midi_writer_accepts_numeric_string_tempo_without_type_error(self):
+        data = G._build_midi_bytes([B.Note(0.0, 0.5, 60, 90)], bpm="120")
+        recovered = G._read_midi_impl(data)
+        self.assertEqual(len(recovered), 1)
+        self.assertAlmostEqual(recovered[0].dur, 0.5)
+
+    def test_latent_bus_vector_property_is_copy_only(self):
+        bus = LatentBus()
+        exposed = bus.vector
+        exposed[0] = 123.0
+        self.assertEqual(bus.read()[0], 0.0)
+
+    def test_pitch_synthesis_rejects_above_nyquist(self):
+        with self.assertRaises(ValueError):
+            G.pluck(127, 0.1, 0.8, 8000)
+
+    def test_pipeline_and_transcriber_reject_fractional_sample_rates(self):
+        from aura_g.pipeline import AURAG
+        with self.assertRaises(ValueError):
+            AURAG(sr=48000.5)
+        with self.assertRaises(ValueError):
+            TranscriptionEngine(sr=48000, hop=480.5)
+        with self.assertRaises(ValueError):
+            TranscriptionEngine(sr=48000, gate=float("nan"))
+
+    def test_yin_validates_parameters_even_for_silent_frames(self):
+        with self.assertRaises(ValueError):
+            A.fixed_yin(np.zeros(128), 0)
+        with self.assertRaises(ValueError):
+            B._yin(np.zeros(128), SR, thr=1.5)
+
+    def test_transcription_hop_duration_survives_sample_rate_conversion(self):
+        from unittest.mock import patch
+        with patch("aura_g_adapter.FrontEndAnalyzer") as analyzer:
+            analyzer.return_value.process.return_value = []
+            A.aura_g_transcribe(np.zeros(44100), 44100, hop=441)
+            analyzer.assert_called_once_with(sr=48000, hop=480)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
