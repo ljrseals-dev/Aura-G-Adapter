@@ -7,13 +7,13 @@ from .latent_bus import LatentBus
 
 def yin_pitch(frame, sr, fmin=70.0, fmax=1200.0, threshold=0.15):
     """YIN fundamental frequency estimator (simplified, probabilistic via CMND)."""
-    frame = np.asarray(frame, dtype=np.float64)
-    if frame.ndim != 1 or len(frame) < 4 or not np.all(np.isfinite(frame)):
-        return 0.0, 0.0
     if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
             not np.all(np.isfinite([fmin, fmax, threshold])) or
             fmin <= 0 or fmax <= fmin or not 0 < threshold < 1):
         raise ValueError("invalid sample rate, pitch bounds, or YIN threshold")
+    frame = np.asarray(frame, dtype=np.float64)
+    if frame.ndim != 1 or len(frame) < 4 or not np.all(np.isfinite(frame)):
+        return 0.0, 0.0
     frame = frame - np.mean(frame)
     tau_min = max(2, int(sr / fmax))
     tau_max = min(int(sr / fmin), len(frame) - 1)
