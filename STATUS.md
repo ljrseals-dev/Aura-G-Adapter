@@ -1,9 +1,9 @@
 # AURA-G current engineering status
 
-**Assessment date:** 2026-11-18  
+**Assessment date:** 2026-11-19  
 **Target branch:** `main`  
 **Repair branch:** `repair/aura-g-processing-corrections`  
-**State:** Experimental; adapter regression suite passes on the repair branch; full-pipeline validation remains open.
+**State:** Experimental; latest GitHub Actions run passed 45 adapter tests and 8 full-pipeline tests; real-recording/audio-quality review remains open.
 
 ## Repository baseline
 
@@ -74,3 +74,23 @@ A deeper pass after the initial green smoke run found additional defects that we
 Run #44466498199 on the earlier follow-up commit had a passing full-pipeline job (3 tests) and an adapter job with 20 passing tests plus one failing newly authored MIDI overlap fixture. The failure was in the test fixture's end-of-track byte construction, not a parser assertion; the fixture was corrected to use explicit byte values. Additional regression cases were then added for silent YIN frames and unplucked-string silence.
 
 **Latest verification passed on PR head 91d5ec859511a1292d5264db12241a99477416b0.** GitHub Actions run [#44466891104](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44466891104) completed successfully: 25 adapter regression tests and 5 CPU PyTorch/torchaudio pipeline tests passed.
+
+## Deep follow-up corrections (2026-11-19)
+
+A second source-level review found defects outside the earlier smoke-test coverage:
+
+- **MIDI structure:** Meta-event lengths are now decoded as bounded VLQs (not a single byte); tempo meta events must have exactly three payload bytes; each track must terminate with a zero-length End-of-Track event; bytes after End-of-Track are rejected. The writer now uses the parsed numeric BPM consistently and rejects velocity-zero note-ons because MIDI defines them as note-offs.
+- **Pitch validity:** The zero log-pitch value remains valid A4, while measured YIN confidence is now carried separately in the first formerly reserved latent-bus slot. The transcription and physical-rendering paths require sufficient confidence, preventing noisy/unvoiced high-energy frames from being emitted as false A4 notes.
+- **Sample-rate correctness:** Transcription hop size is rescaled with the audio when converting to 48 kHz. YIN bounds must remain below Nyquist. Fractional sample clocks are rejected at pipeline/transcriber boundaries.
+- **Physical synthesis:** The physical model now consumes the full latent pitch/onset sequence instead of using only the first frame. It does not retrigger the string at every processing block, retains waveguide state, and carries body-resonator filter state across calls. Invalid pitch frames clear active-pitch state.
+- **DDSP filters:** The output transformer now uses actual RBJ high-pass and low-pass biquad responses rather than two peaking-EQ dips. The power-amp envelope time is sample-rate-derived; DDSP validates latent controls and preserves gradient flow in the exercised path.
+- **Other boundaries:** The latent bus vector property is copy-only; mixer weights are checked before blending and latent macros are bounded; complex-valued audio is rejected rather than silently cast to real; short blind-extractor clips bypass instead of becoming silence; tract controls, buffer shapes, and formant-analysis sizes are validated; zero-velocity notes render silence.
+- **Demo:** Empty transcription output no longer causes the summary print to fail.
+
+### Latest verification
+
+GitHub Actions run [#44469185005](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44469185005) passed on commit `287d7bba642b0f0fecf91fd17e6aea469af2ff4d`:
+- **45 adapter regression tests passed.**
+- **8 CPU PyTorch/torchaudio pipeline tests passed.**
+
+This is automated regression evidence for the tested inputs, not proof that all possible defects are eliminated. The project remains experimental; trained-checkpoint quality, real-guitar recordings, polyphonic transcription, and real-time behavior still require independent validation.
