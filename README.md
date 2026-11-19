@@ -13,7 +13,7 @@ See [STATUS.md](STATUS.md) for the current engineering assessment, completed cor
 - Monophonic audio-to-note transcription using the AURA-G front end and a corrected YIN implementation.
 - Fractional-delay tuned waveguide guitar-string rendering.
 - A 48-section Kelly–Lochbaum-style tract renderer.
-- Standard MIDI File Type-0 read/write helpers.
+- Standard MIDI File Type-0 writer and Type-0/1 reader with bounded event parsing.
 - Experimental DDSP amplifier, GRU effects, latent bus, and physical guitar model.
 
 ## Installation
@@ -59,7 +59,7 @@ The adapter API expects a finite, one-dimensional mono NumPy array. Use `aura_g_
 - Pitch/onset transcription is monophonic; chords and overlapping same-pitch notes are not reliably separated.
 - Synthetic pluck tests do not establish accuracy on real guitar recordings.
 - The GRU effects are randomly initialized unless trained weights are supplied; this repository does not establish a trained model checkpoint.
-- The full pipeline is offline-oriented and has not been qualified for real-time latency, allocation behavior, or thread safety.
+- The physical guitar path follows latent pitch/onset blocks and retains waveguide/body-filter state across processing blocks. The full pipeline remains offline-oriented and has not been qualified for real-time latency, allocation behavior, or thread safety.
 - The vocal-tract model is an experimental effect, not a validated speech synthesizer.
 - Audio normalization, sample-rate conversion, and channel handling should be performed explicitly at application boundaries.
 
