@@ -5,8 +5,11 @@ import numpy as np
 class BlindExtractor:
     """Frequency-domain Wiener-style inversion for approximately LTI effects."""
     def __init__(self, sr=48000, n_fft=4096, hop=1024, reg=1e-3):
-        if sr <= 0 or n_fft < 2 or hop <= 0 or reg <= 0:
-            raise ValueError("sr, n_fft, hop, and regularization must be positive")
+        if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
+                not isinstance(n_fft, (int, np.integer)) or n_fft < 2 or
+                not isinstance(hop, (int, np.integer)) or hop <= 0 or
+                not np.isfinite(reg) or reg <= 0):
+            raise ValueError("sr, n_fft, and hop must be positive integers; regularization must be finite and positive")
         self.sr, self.n_fft, self.hop, self.reg = int(sr), int(n_fft), int(hop), float(reg)
         self.H = None
 
@@ -42,7 +45,9 @@ class BlindExtractor:
         if len(x) == 0:
             return np.zeros(0, dtype=np.float64)
         if len(X) == 0:
-            return np.zeros_like(x)
+            # The learned transfer estimate has no full analysis frame to
+            # operate on; bypass instead of replacing a short clip with silence.
+            return x.copy()
         if X.shape[1] != len(self.H):
             raise ValueError("stored transfer function does not match n_fft")
         out = np.zeros(len(x), dtype=np.float64)
