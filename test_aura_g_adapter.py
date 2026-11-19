@@ -157,6 +157,15 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             extractor.fit(np.zeros(16), np.zeros(16))
 
+    def test_physical_model_rejects_invalid_control_values(self):
+        model = __import__("aura_g.physical_model", fromlist=["DigitalWaveguideString"]).DigitalWaveguideString(sr=SR)
+        with self.assertRaises(ValueError):
+            model.pluck(fret=1.5)
+        with self.assertRaises(ValueError):
+            model.pluck(dynamics=float("nan"))
+        with self.assertRaises(ValueError):
+            model.step(1.5)
+
     def test_physical_string_fret_changes_delay(self):
         string = __import__("aura_g.physical_model", fromlist=["DigitalWaveguideString"]).DigitalWaveguideString(sr=SR, f0=196)
         open_delay = string.delay
