@@ -51,7 +51,8 @@ class TranscriptionEngine:
         events = []
         for bus in bus_history:
             pg = bus.get_pitch_gesture()
-            f0 = 440.0 * (2 ** (float(pg[0]) * 6.0)) if pg[0] != 0 else 0.0
+            # Zero log-pitch is the valid A4 (440 Hz) encoding; dynamics gates silence.
+            f0 = 440.0 * (2 ** (float(pg[0]) * 6.0))
             onset = pg[1] > 0.5
             dynamics = float(pg[6])
             t = self.frame_index * self.hop / self.sr
