@@ -10,7 +10,7 @@ def fixed_yin(frame, sr, fmin=70.0, fmax=1200.0, threshold=0.15):
     """YIN: choose the first CMND threshold crossing, then refine its local minimum."""
     if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
             not np.isfinite(fmin) or not np.isfinite(fmax) or
-            not 0 < fmin < fmax or not np.isfinite(threshold) or
+            not 0 < fmin < fmax or fmax >= sr / 2 or not np.isfinite(threshold) or
             not 0 < threshold < 1):
         raise ValueError("invalid YIN sample rate, frequency bounds, or threshold")
     raw = np.asarray(frame)
