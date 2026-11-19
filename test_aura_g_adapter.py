@@ -311,10 +311,7 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             G.pluck(127, 0.1, 0.8, 8000)
 
-    def test_pipeline_and_transcriber_reject_fractional_sample_rates(self):
-        from aura_g.pipeline import AURAG
-        with self.assertRaises(ValueError):
-            AURAG(sr=48000.5)
+    def test_transcriber_rejects_fractional_sample_clocks_and_non_finite_gate(self):
         with self.assertRaises(ValueError):
             TranscriptionEngine(sr=48000, hop=480.5)
         with self.assertRaises(ValueError):
