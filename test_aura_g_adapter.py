@@ -253,6 +253,20 @@ class T(unittest.TestCase):
         string = DigitalWaveguideString(sr=SR, f0=196.0)
         np.testing.assert_array_equal(string.step(512), np.zeros(512))
 
+    def test_front_end_rejects_fractional_sample_clock_parameters(self):
+        with self.assertRaises(ValueError):
+            FrontEndAnalyzer(sr=48000.5)
+        with self.assertRaises(ValueError):
+            FrontEndAnalyzer(hop=480.5)
+        with self.assertRaises(ValueError):
+            A.fixed_yin(np.ones(4096), SR, threshold=1.5)
+
+    def test_mixer_rejects_fractional_output_length(self):
+        from aura_g.mixer import RoutingMatrix
+        mixer = RoutingMatrix()
+        with self.assertRaises(ValueError):
+            mixer.blend(np.zeros(4), np.zeros(4), np.zeros(4), 3.5)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
