@@ -197,6 +197,10 @@ class T(unittest.TestCase):
     def test_midi_writer_rejects_tempo_outside_24_bit_range(self):
         with self.assertRaises(ValueError):
             G._build_midi_bytes([], bpm=1.0)
+        with self.assertRaises(ValueError):
+            G._build_midi_bytes([], bpm=1e-320)
+        with self.assertRaises(ValueError):
+            G._build_midi_bytes([], bpm="fast")
 
     def test_latent_bus_rejects_invalid_vectors_and_protects_state(self):
         with self.assertRaises(ValueError):
