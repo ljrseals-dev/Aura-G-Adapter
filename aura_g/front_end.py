@@ -115,7 +115,7 @@ class FrontEndAnalyzer:
             frame = audio[start:start + self.win]
             f0, conf = yin_pitch(frame, self.sr, self.fmin, self.fmax)
             pitch_confidences[i] = conf
-            if conf > 0.5 and f0 > 0:
+            if conf >= 0.5 and f0 > 0:
                 self.prev_f0 = f0
                 f0s[i] = f0
             else:
