@@ -15,7 +15,8 @@ class DigitalWaveguideString:
         if self.f0 >= self.sr / 2:
             raise ValueError("string fundamental must be below Nyquist")
         self.delay = max(2, int(round(self.sr / self.f0)))
-        self.buffer = np.random.default_rng(0).standard_normal(self.delay) * 0.01
+        # An unplucked string is silent; excitation is installed only by pluck().
+        self.buffer = np.zeros(self.delay, dtype=np.float64)
         self._cursor = 0
 
     def fret_damping(self, fret):
