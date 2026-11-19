@@ -73,4 +73,4 @@ A deeper pass after the initial green smoke run found additional defects that we
 
 Run #44466498199 on the earlier follow-up commit had a passing full-pipeline job (3 tests) and an adapter job with 20 passing tests plus one failing newly authored MIDI overlap fixture. The failure was in the test fixture's end-of-track byte construction, not a parser assertion; the fixture was corrected to use explicit byte values. Additional regression cases were then added for silent YIN frames and unplucked-string silence.
 
-**The corrected, latest follow-up changes have not yet received a completed CI run.** Do not treat the earlier green run or the partially passing run above as verification of this latest state.
+**Latest verification passed on PR head 91d5ec859511a1292d5264db12241a99477416b0.** GitHub Actions run [#44466891104](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44466891104) completed successfully: 25 adapter regression tests and 5 CPU PyTorch/torchaudio pipeline tests passed.
