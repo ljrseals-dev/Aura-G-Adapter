@@ -391,6 +391,13 @@ class T(unittest.TestCase):
         finally:
             B.register_transcriber(None)
 
+    def test_mixer_rejects_corrupted_weights(self):
+        from aura_g.mixer import RoutingMatrix
+        mixer = RoutingMatrix()
+        mixer.weights[0] = float("nan")
+        with self.assertRaises(ValueError):
+            mixer.blend(np.zeros(4), np.zeros(4), np.zeros(4), 4)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
