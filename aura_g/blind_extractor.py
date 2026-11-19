@@ -14,7 +14,10 @@ class BlindExtractor:
         self.H = None
 
     def _stft(self, x):
-        x = np.asarray(x, dtype=np.float64)
+        raw = np.asarray(x)
+        if np.iscomplexobj(raw):
+            raise ValueError("audio must be real-valued")
+        x = np.asarray(raw, dtype=np.float64)
         if x.ndim != 1 or not np.all(np.isfinite(x)):
             raise ValueError("audio must be a finite mono array")
         if len(x) < self.n_fft:
