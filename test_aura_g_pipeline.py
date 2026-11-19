@@ -1,8 +1,10 @@
 """Integration smoke tests for the Torch/torchaudio AURA-G processing path."""
 import unittest
 import numpy as np
+import torch
 
 from aura_g.pipeline import AURAG
+from aura_g.rnn_fx import InterpolationFilter, SampleRateIndependentFX
 
 
 class PipelineSmokeTests(unittest.TestCase):
@@ -37,6 +39,24 @@ class PipelineSmokeTests(unittest.TestCase):
             engine.process(np.array([0.0, np.nan], dtype=np.float32))
         with self.assertRaises(ValueError):
             engine.process(np.zeros((2, 128), dtype=np.float32))
+
+    def test_same_rate_resampler_is_transparent_and_empty_safe(self):
+        resampler = InterpolationFilter(ratio=1.0)
+        audio = torch.randn(2, 257)
+        self.assertIs(resampler(audio), audio)
+        empty = torch.empty(1, 0)
+        self.assertEqual(resampler(empty).shape, (1, 0))
+
+    def test_rnn_fx_resampling_preserves_public_shape(self):
+        engine = SampleRateIndependentFX(sr_in=44100, sr_internal=48000)
+        audio = torch.randn(1, 1024)
+        latent = torch.zeros(1, 32)
+        output = engine(audio, latent)
+        self.assertEqual(output.shape, audio.shape)
+        self.assertTrue(torch.isfinite(output).all())
+        self.assertEqual(engine(torch.empty(1, 0)).shape, (1, 0))
+        with self.assertRaises(ValueError):
+            engine.fx(audio, torch.zeros(1, 31))
 
 
 if __name__ == "__main__":
