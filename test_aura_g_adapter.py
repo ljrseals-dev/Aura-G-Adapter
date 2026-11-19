@@ -248,6 +248,11 @@ class T(unittest.TestCase):
         self.assertEqual(A.fixed_yin(np.zeros(4096), SR), (0.0, 0.0))
         self.assertEqual(B._yin(np.zeros(2208), SR), (0.0, 1.0))
 
+    def test_unplucked_physical_string_starts_silent(self):
+        from aura_g.physical_model import DigitalWaveguideString
+        string = DigitalWaveguideString(sr=SR, f0=196.0)
+        np.testing.assert_array_equal(string.step(512), np.zeros(512))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
