@@ -23,7 +23,10 @@ class AURAG:
         self.mixer = RoutingMatrix()
 
     def process(self, audio: np.ndarray, use_ddsp=True, use_fx=True, use_phys=True):
-        audio = np.asarray(audio, dtype=np.float32)
+        raw = np.asarray(audio)
+        if np.iscomplexobj(raw):
+            raise ValueError("audio must be real-valued")
+        audio = np.asarray(raw, dtype=np.float32)
         if audio.ndim != 1:
             raise ValueError("audio must be mono and one-dimensional")
         if not np.all(np.isfinite(audio)):
