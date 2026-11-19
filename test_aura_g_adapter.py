@@ -132,19 +132,19 @@ class T(unittest.TestCase):
             return b"MTrk" + struct.pack(">I", len(body)) + body
 
         tempo_track = track([
-            (0, b"\\xff\\x51\\x03" + (500000).to_bytes(3, "big")),
-            (480, b"\\xff\\x51\\x03" + (1000000).to_bytes(3, "big")),
-            (0, b"\\xff\\x2f\\x00"),
+            (0, b"\xff\x51\x03" + (500000).to_bytes(3, "big")),
+            (480, b"\xff\x51\x03" + (1000000).to_bytes(3, "big")),
+            (0, b"\xff\x2f\x00"),
         ])
         first_note_track = track([
             (0, bytes([0x90, 60, 90])),
             (480, bytes([0x80, 60, 0])),
-            (0, b"\\xff\\x2f\\x00"),
+            (0, b"\xff\x2f\x00"),
         ])
         second_note_track = track([
             (0, bytes([0x90, 60, 80])),
             (960, bytes([0x80, 60, 0])),
-            (0, b"\\xff\\x2f\\x00"),
+            (0, b"\xff\x2f\x00"),
         ])
         header = b"MThd" + struct.pack(">IHHH", 6, 1, 3, 480)
         recovered = G._read_midi_impl(header + tempo_track + first_note_track + second_note_track)
