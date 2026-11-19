@@ -3,7 +3,7 @@
 **Assessment date:** 2026-11-19  
 **Target branch:** `main`  
 **Repair branch:** `repair/aura-g-processing-corrections`  
-**State:** Experimental; latest GitHub Actions run passed 45 adapter tests and 8 full-pipeline tests; real-recording/audio-quality review remains open.
+**State:** Experimental; latest GitHub Actions run #44469877959 passed 50 adapter regression tests and 9 CPU PyTorch/torchaudio full-pipeline tests on branch head `a5b03625dd86bb39cc831ea980fb87e287672c40`; real-recording/audio-quality review remains open.
 
 ## Repository baseline
 
@@ -89,8 +89,6 @@ A second source-level review found defects outside the earlier smoke-test covera
 
 ### Latest verification
 
-GitHub Actions run [#44469748793](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44469748793) passed on commit `242f3778b967aad4f24fbda0637da8e74218e277`:
-- **50 adapter regression tests passed.**
-- **9 CPU PyTorch/torchaudio pipeline tests passed.**
+GitHub Actions run [#44469748793](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44469748793) passed on source commit `242f3778b967aad4f24fbda0637da8e74218e277` with 50 adapter regression tests and 9 CPU PyTorch/torchaudio pipeline tests. A subsequent documentation-only commit produced branch-head run [#44469877959](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44469877959), in which both `adapter-tests` and `full-pipeline-smoke` completed successfully. This confirms the latest branch head is green; the code tested is unchanged from the source commit above.
 
 This is automated regression evidence for the tested inputs, not proof that all possible defects are eliminated. The project remains experimental; trained-checkpoint quality, real-guitar recordings, polyphonic transcription, and real-time behavior still require independent validation.
