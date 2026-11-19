@@ -42,7 +42,10 @@ def yin_pitch(frame, sr, fmin=70.0, fmax=1200.0, threshold=0.15):
 
 def spectral_features(frame, sr):
     """Return timbre descriptors normalized to [0,1]."""
-    frame = np.asarray(frame, dtype=np.float64)
+    raw = np.asarray(frame)
+    if np.iscomplexobj(raw):
+        raise ValueError("frame must be real-valued")
+    frame = np.asarray(raw, dtype=np.float64)
     if frame.ndim != 1 or len(frame) == 0 or not np.all(np.isfinite(frame)):
         raise ValueError("frame must be a non-empty finite mono array")
     if not isinstance(sr, (int, np.integer)) or sr <= 0:
