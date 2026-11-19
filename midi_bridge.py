@@ -13,10 +13,32 @@ from harmonia_guitar import Note, write_midi, read_midi
 _TRANSCRIBER = None
 
 def register_transcriber(fn):
-    """fn(audio: np.ndarray, sr: int) -> list[Note | (start, dur, midi, vel)]. 
-    Use this to plug in AURA-G's transcription."""
+    """Register a callable audio transcriber, or pass None to restore fallback YIN."""
+    if fn is not None and not callable(fn):
+        raise TypeError("transcriber must be callable or None")
     global _TRANSCRIBER
     _TRANSCRIBER = fn
+
+
+def _validated_notes(values):
+    """Normalize plugin output and enforce the Note contract at the boundary."""
+    try:
+        items = list(values)
+    except TypeError:
+        raise ValueError("transcriber must return an iterable of notes") from None
+    notes = []
+    for item in items:
+        try:
+            note = item if isinstance(item, Note) else Note(*item)
+            start, duration = float(note.start), float(note.dur)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("transcriber returned a malformed note") from None
+        if (not np.isfinite(start) or not np.isfinite(duration) or start < 0 or duration <= 0 or
+                not isinstance(note.midi, (int, np.integer)) or not 0 <= note.midi <= 127 or
+                not isinstance(note.vel, (int, np.integer)) or not 0 <= note.vel <= 127):
+            raise ValueError("transcriber returned invalid note timing, pitch, or velocity")
+        notes.append(Note(start, duration, int(note.midi), int(note.vel)))
+    return notes
 
 def _yin(frame, sr, fmin=70.0, fmax=1200.0, thr=0.15):
     """YIN fundamental frequency estimator."""
@@ -71,7 +93,7 @@ def transcribe(audio, sr, hop=0.01, win=0.046, min_note=0.06, gate_db=-45.0):
         x = np.asarray(audio)
         if np.iscomplexobj(x) or x.ndim != 1 or not np.all(np.isfinite(x)):
             raise ValueError("audio must be finite mono input")
-        return [n if isinstance(n, Note) else Note(*n) for n in _TRANSCRIBER(x, sr)]
+        return _validated_notes(_TRANSCRIBER(x, sr))
 
     raw = np.asarray(audio)
     if np.iscomplexobj(raw):
