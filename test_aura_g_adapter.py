@@ -118,6 +118,10 @@ class T(unittest.TestCase):
         silence.write_pitch_gesture(0.0, 0.0, 0.0, 0.5, 0.0, 0.5, 0.0, 0.0)
         self.assertEqual(engine.process([a4, silence])[0]["midi"], 69)
         self.assertEqual(engine.flush(), [])
+        unvoiced = LatentBus(sample_rate=SR, hop=480)
+        unvoiced.write_pitch_gesture(0.0, 0.0, 0.0, 0.5, 0.0, 0.5, 0.8, 0.0)
+        unvoiced.write_pitch_confidence(0.0)
+        self.assertEqual(TranscriptionEngine(sr=SR, hop=480).process([unvoiced]), [])
 
     def test_midi_rejects_invalid_vlq_and_truncated_header(self):
         with self.assertRaises(ValueError):
@@ -433,6 +437,13 @@ class T(unittest.TestCase):
         split_filter = BodyResonance(sr=SR)
         split = np.concatenate([split_filter(source[:400]), split_filter(source[400:])])
         np.testing.assert_allclose(split, whole, rtol=1e-12, atol=1e-12)
+
+    def test_front_end_preserves_unvoiced_confidence_separately_from_a4(self):
+        noise = np.random.default_rng(123).normal(0.0, 0.1, 2048)
+        buses = list(FrontEndAnalyzer(sr=SR, hop=480).process(noise))
+        self.assertTrue(buses)
+        self.assertLess(buses[0].get_pitch_confidence(), 0.5)
+        self.assertEqual(TranscriptionEngine(sr=SR, hop=480).process(buses), [])
 
 
 if __name__ == "__main__":
