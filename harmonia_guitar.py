@@ -93,7 +93,7 @@ def write_midi(path, notes, bpm=120, tpq=480):
 
 
 def _read_midi_impl(data):
-    """Parse a bounded SMF file; malformed or unsupported files raise ValueError."""
+    """Parse bounded SMF format 0/1 data with a merged, tick-based tempo map."""
     data = bytes(data)
     if len(data) < 14 or data[:4] != b"MThd":
         raise ValueError("invalid or truncated MIDI header")
@@ -104,16 +104,20 @@ def _read_midi_impl(data):
         raise ValueError("unsupported MIDI format or track count")
     if division == 0 or division & 0x8000:
         raise ValueError("SMPTE or zero MIDI time division is unsupported")
-    position, tempo = 8 + header_length, 500000
-    notes, open_notes = [], {}
-    for _ in range(track_count):
+
+    # Keep absolute-tick events until every track has been read. Format-1
+    # tempo events are global; converting each track while parsing would
+    # incorrectly apply a tempo change only to later events in that track.
+    merged = []
+    position = 8 + header_length
+    for track_index in range(track_count):
         if position + 8 > len(data) or data[position:position + 4] != b"MTrk":
             raise ValueError("missing or truncated MIDI track")
         length = struct.unpack(">I", data[position + 4:position + 8])[0]
         offset, end = position + 8, position + 8 + length
         if end > len(data):
             raise ValueError("MIDI track extends beyond file")
-        tick, running_status = 0, None
+        tick, running_status, sequence = 0, None, 0
         while offset < end:
             delta, offset = _read_vlq(data, offset, end)
             tick += delta
@@ -128,11 +132,14 @@ def _read_midi_impl(data):
                 offset += 2
                 if offset + size > end:
                     raise ValueError("MIDI meta event exceeds track")
+                payload = data[offset:offset + size]
                 if kind == 0x51 and size == 3:
-                    tempo = int.from_bytes(data[offset:offset + 3], "big")
+                    tempo = int.from_bytes(payload, "big")
                     if tempo == 0:
                         raise ValueError("MIDI tempo cannot be zero")
+                    merged.append((tick, 0, track_index, sequence, "tempo", tempo))
                 offset += size
+                sequence += 1
                 continue
             if status in (0xF0, 0xF7):
                 offset += 1
@@ -141,6 +148,7 @@ def _read_midi_impl(data):
                     raise ValueError("MIDI SysEx event exceeds track")
                 offset += size
                 running_status = None
+                sequence += 1
                 continue
             if status & 0x80:
                 running_status = status
@@ -148,7 +156,10 @@ def _read_midi_impl(data):
             elif running_status is None:
                 raise ValueError("MIDI running status used before channel status")
             status = running_status
-            data_bytes = 1 if (status & 0xF0) in (0xC0, 0xD0) else 2
+            if not 0x80 <= status <= 0xEF:
+                raise ValueError("unsupported MIDI system event")
+            command = status & 0xF0
+            data_bytes = 1 if command in (0xC0, 0xD0) else 2
             if offset + data_bytes > end:
                 raise ValueError("truncated MIDI channel event")
             first = data[offset]
@@ -156,18 +167,32 @@ def _read_midi_impl(data):
             offset += data_bytes
             if first > 127 or second > 127:
                 raise ValueError("invalid MIDI data byte")
-            channel, command = status & 0x0F, status & 0xF0
-            seconds = tick * tempo / 1e6 / division
-            key = (channel, first)
-            if command == 0x90 and second > 0:
-                open_notes[key] = (seconds, second)
-            elif command == 0x80 or (command == 0x90 and second == 0):
-                if key in open_notes:
-                    start, velocity = open_notes.pop(key)
-                    notes.append(Note(start, max(0.0, seconds - start), first, velocity))
+            merged.append((tick, 1, track_index, sequence, "channel",
+                           (status & 0x0F, command, first, second)))
+            sequence += 1
         position = end
-    return sorted(notes, key=lambda note: (note.start, note.midi))
+    if position != len(data):
+        raise ValueError("unexpected data after declared MIDI tracks")
 
+    merged.sort(key=lambda event: event[:4])
+    tempo, previous_tick, elapsed = 500000, 0, 0.0
+    notes, open_notes = [], {}
+    for tick, _, track_index, _, kind, payload in merged:
+        elapsed += (tick - previous_tick) * tempo / 1e6 / division
+        previous_tick = tick
+        if kind == "tempo":
+            tempo = payload
+            continue
+        channel, command, pitch, velocity = payload
+        key = (track_index, channel, pitch)
+        if command == 0x90 and velocity > 0:
+            open_notes[key] = (elapsed, velocity)
+        elif command == 0x80 or (command == 0x90 and velocity == 0):
+            if key in open_notes:
+                start_time, start_velocity = open_notes.pop(key)
+                notes.append(Note(start_time, max(0.0, elapsed - start_time),
+                                  pitch, start_velocity))
+    return sorted(notes, key=lambda note: (note.start, note.midi))
 
 def read_midi(path):
     with open(path, "rb") as stream:
