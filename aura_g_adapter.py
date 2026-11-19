@@ -177,8 +177,9 @@ def render_talkbox_aura(notes, fs=48000, tail=0.8, glide=0.04, seed=0):
         start = int(note.start * fs)
         if start >= n:
             continue
+        velocity = 0.0 if note.vel == 0 else 0.25 + 0.7 * note.vel / 127
         pluck = string.render(440 * 2 ** ((note.midi - 69) / 12),
-                              note.dur + tail, dynamics=0.25 + 0.7 * note.vel / 127)
+                              note.dur + tail, dynamics=velocity)
         count = min(len(pluck), n - start)
         source[start:start + count] += pluck[:count]
         curve[start:] = (note.midi % 12) / 12.0
