@@ -1,4 +1,5 @@
 import unittest
+import struct
 import numpy as np
 import aura_g_adapter as A
 import midi_bridge as B
@@ -124,6 +125,32 @@ class T(unittest.TestCase):
             G._read_vlq(b"\x81\x80\x80\x80\x00", 0)
         with self.assertRaises(ValueError):
             G._read_midi_impl(b"MThd")
+
+    def test_format1_global_tempo_map_and_parallel_same_pitch_notes(self):
+        def track(events):
+            body = b"".join(G._vlq(delta) + event for delta, event in events)
+            return b"MTrk" + struct.pack(">I", len(body)) + body
+
+        tempo_track = track([
+            (0, b"\\xff\\x51\\x03" + (500000).to_bytes(3, "big")),
+            (480, b"\\xff\\x51\\x03" + (1000000).to_bytes(3, "big")),
+            (0, b"\\xff\\x2f\\x00"),
+        ])
+        first_note_track = track([
+            (0, bytes([0x90, 60, 90])),
+            (480, bytes([0x80, 60, 0])),
+            (0, b"\\xff\\x2f\\x00"),
+        ])
+        second_note_track = track([
+            (0, bytes([0x90, 60, 80])),
+            (960, bytes([0x80, 60, 0])),
+            (0, b"\\xff\\x2f\\x00"),
+        ])
+        header = b"MThd" + struct.pack(">IHHH", 6, 1, 3, 480)
+        recovered = G._read_midi_impl(header + tempo_track + first_note_track + second_note_track)
+        self.assertEqual(len(recovered), 2)
+        self.assertAlmostEqual(recovered[0].dur, 0.5)
+        self.assertAlmostEqual(recovered[1].dur, 1.5)
 
     def test_blind_extractor_rejects_short_training_pair(self):
         extractor = BlindExtractor(n_fft=64, hop=16)
