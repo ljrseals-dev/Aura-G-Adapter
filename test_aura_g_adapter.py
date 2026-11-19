@@ -381,6 +381,16 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             FrontEndAnalyzer(sr=2000, fmax=1200)
 
+    def test_registered_transcriber_contract_is_validated(self):
+        with self.assertRaises(TypeError):
+            B.register_transcriber(123)
+        B.register_transcriber(lambda audio, sr: [B.Note(0.0, 0.1, 128, 90)])
+        try:
+            with self.assertRaises(ValueError):
+                B.transcribe(np.zeros(1024), SR)
+        finally:
+            B.register_transcriber(None)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
