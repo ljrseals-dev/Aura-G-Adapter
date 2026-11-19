@@ -373,6 +373,14 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             M.formants(0.5, n=2)
 
+    def test_yin_pitch_bounds_must_stay_below_nyquist(self):
+        with self.assertRaises(ValueError):
+            A.fixed_yin(np.ones(4096), 2000, fmax=1200)
+        with self.assertRaises(ValueError):
+            B._yin(np.ones(4096), 2000, fmax=1200)
+        with self.assertRaises(ValueError):
+            FrontEndAnalyzer(sr=2000, fmax=1200)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
