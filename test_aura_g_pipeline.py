@@ -58,6 +58,12 @@ class PipelineSmokeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             engine.fx(audio, torch.zeros(1, 31))
 
+    def test_pipeline_rejects_fractional_sample_clock(self):
+        with self.assertRaises(ValueError):
+            AURAG(sr=48000.5)
+        with self.assertRaises(ValueError):
+            AURAG(hop=480.5)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
