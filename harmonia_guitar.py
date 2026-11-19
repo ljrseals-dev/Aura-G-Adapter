@@ -21,6 +21,8 @@ def pluck(midi: int, dur: float, vel: float, fs: int, seed=None) -> np.ndarray:
     if not isinstance(fs, (int, np.integer)) or fs <= 0:
         raise ValueError("fs must be a positive integer")
     frequency = 440.0 * (2.0 ** ((midi - 69) / 12.0))
+    if frequency >= fs / 2:
+        raise ValueError("MIDI pitch is at or above the sample-rate Nyquist frequency")
     count = int(fs * dur)
     period = max(2, int(round(fs / frequency)))
     noise = np.random.default_rng(seed).uniform(-1.0, 1.0, period)
