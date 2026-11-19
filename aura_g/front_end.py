@@ -11,7 +11,10 @@ def yin_pitch(frame, sr, fmin=70.0, fmax=1200.0, threshold=0.15):
             not np.all(np.isfinite([fmin, fmax, threshold])) or
             fmin <= 0 or fmax <= fmin or fmax >= sr / 2 or not 0 < threshold < 1):
         raise ValueError("invalid sample rate, pitch bounds, or YIN threshold")
-    frame = np.asarray(frame, dtype=np.float64)
+    raw = np.asarray(frame)
+    if np.iscomplexobj(raw):
+        raise ValueError("YIN frame must be real-valued")
+    frame = np.asarray(raw, dtype=np.float64)
     if frame.ndim != 1 or len(frame) < 4 or not np.all(np.isfinite(frame)):
         return 0.0, 0.0
     frame = frame - np.mean(frame)
