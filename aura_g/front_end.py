@@ -108,12 +108,14 @@ class FrontEndAnalyzer:
         n_hops = 1 + (len(audio) - self.win) // self.hop
         onset_env = np.zeros(n_hops)
         f0s = np.zeros(n_hops)
+        pitch_confidences = np.zeros(n_hops)
         timbre_feats = []
         for i in range(n_hops):
             start = i * self.hop
             frame = audio[start:start + self.win]
             f0, conf = yin_pitch(frame, self.sr, self.fmin, self.fmax)
-            if conf > 0.5:
+            pitch_confidences[i] = conf
+            if conf > 0.5 and f0 > 0:
                 self.prev_f0 = f0
                 f0s[i] = f0
             else:
@@ -125,7 +127,7 @@ class FrontEndAnalyzer:
         for i in range(n_hops):
             bus = LatentBus(sample_rate=self.sr, hop=self.hop)
             f0 = f0s[i]
-            f0_log = np.log2(f0 / 440.0 + 1e-9) / 6.0 if f0 > 0 else 0.0
+            f0_log = np.log2(f0 / 440.0) / 6.0 if f0 > 0 else 0.0
             bend = 0.0
             if i > 0 and f0s[i - 1] > 0 and f0 > 0:
                 bend = np.clip(np.log2(f0 / f0s[i - 1]) * 12, -2, 2) / 2.0
@@ -136,6 +138,7 @@ class FrontEndAnalyzer:
             palm_mute = float(1.0 - min(1.0, timbre_feats[i]['centroid'] * 3))
             bus.write_pitch_gesture(f0_log, float(onsets[i]), float(bend), 0.5,
                                     vib_depth, pluck_pos, dynamics, palm_mute)
+            bus.write_pitch_confidence(float(pitch_confidences[i]))
             t = timbre_feats[i]
             bus.write_timbre(t['centroid'], t['rolloff'], t['flatness'], t['zcr'],
                              t['harmonic_ratio'], t['even_odd'], t['attack_slope'], t['sustain'])
