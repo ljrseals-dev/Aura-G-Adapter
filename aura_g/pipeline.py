@@ -11,8 +11,9 @@ from .mixer import RoutingMatrix
 
 class AURAG:
     def __init__(self, sr=48000, hop=480):
-        if sr <= 0 or hop <= 0:
-            raise ValueError("sample rate and hop must be positive")
+        if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
+                not isinstance(hop, (int, np.integer)) or hop <= 0):
+            raise ValueError("sample rate and hop must be positive integers")
         self.sr, self.hop = int(sr), int(hop)
         self.analyzer = FrontEndAnalyzer(sr=self.sr, hop=self.hop)
         self.amp = DDSPAmp(sr=self.sr).eval()
