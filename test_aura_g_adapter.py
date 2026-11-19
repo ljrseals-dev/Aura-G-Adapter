@@ -108,6 +108,15 @@ class T(unittest.TestCase):
         self.assertAlmostEqual(emitted[0]["duration"], 0.02)
         self.assertEqual(engine.flush(), [])
 
+    def test_a4_zero_log_pitch_is_not_silence(self):
+        engine = TranscriptionEngine(sr=SR, hop=480)
+        a4 = LatentBus(sample_rate=SR, hop=480)
+        a4.write_pitch_gesture(0.0, 0.0, 0.0, 0.5, 0.0, 0.5, 0.8, 0.0)
+        silence = LatentBus(sample_rate=SR, hop=480)
+        silence.write_pitch_gesture(0.0, 0.0, 0.0, 0.5, 0.0, 0.5, 0.0, 0.0)
+        self.assertEqual(engine.process([a4, silence])[0]["midi"], 69)
+        self.assertEqual(engine.flush(), [])
+
     def test_midi_rejects_invalid_vlq_and_truncated_header(self):
         with self.assertRaises(ValueError):
             G._vlq(-1)
