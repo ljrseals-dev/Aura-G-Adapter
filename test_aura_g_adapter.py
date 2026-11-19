@@ -515,5 +515,27 @@ class T(unittest.TestCase):
             mixer.blend(np.zeros(4), np.zeros(4), np.zeros(4), 4)
 
 
+    def test_transcription_preserves_midi_zero_and_measured_confidence(self):
+        engine = TranscriptionEngine(sr=SR, hop=480)
+        bus = LatentBus(sample_rate=SR, hop=480)
+        bus.write_pitch_gesture((0 - 69) / 72.0, 0.0, 0.0, 0.5, 0.0, 0.3, 0.8, 0.0)
+        bus.write_pitch_confidence(0.73)
+        engine.process([bus])
+        event = engine.flush()[0]
+        self.assertEqual(event["midi"], 0)
+        self.assertAlmostEqual(event["confidence"], 0.73, places=6)
+        self.assertNotIn("_confidence_sum", event)
+
+    def test_talkbox_renderers_accept_generators_and_empty_iterables(self):
+        self.assertEqual(A.render_talkbox_aura(iter(()), tail=0.0).size, 0)
+        self.assertEqual(B.render_talkbox(iter(()), tail=0.0).size, 0)
+        note = B.Note(0.0, 0.05, 69, 90)
+        rendered_aura = A.render_talkbox_aura(iter([note]), tail=0.0)
+        rendered_bridge = B.render_talkbox(iter([note]), tail=0.0)
+        self.assertGreater(rendered_aura.size, 0)
+        self.assertGreater(rendered_bridge.size, 0)
+        self.assertTrue(np.all(np.isfinite(rendered_aura)))
+        self.assertTrue(np.all(np.isfinite(rendered_bridge)))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
