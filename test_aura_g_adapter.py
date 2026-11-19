@@ -398,6 +398,12 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             mixer.blend(np.zeros(4), np.zeros(4), np.zeros(4), 4)
 
+    def test_zero_velocity_is_silence_and_not_a_midi_note_on(self):
+        with self.assertRaises(ValueError):
+            G._build_midi_bytes([B.Note(0.0, 0.2, 60, 0)])
+        silent = A.render_talkbox_aura([B.Note(0.0, 0.2, 60, 0)], tail=0.0)
+        np.testing.assert_array_equal(silent, np.zeros_like(silent))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
