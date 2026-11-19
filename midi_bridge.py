@@ -153,9 +153,13 @@ def render_talkbox(notes, fs=48000, octave_shift=0, tail=0.8, glide=0.04):
     """Pluck notes and pass them through the Talk-Box mouth tract."""
     import harmonia_guitar as G
     import mouth_tract as M
-    
+
+    try:
+        notes = list(notes)
+    except TypeError:
+        raise ValueError("notes must be an iterable of Note objects") from None
     if not notes:
-        return np.zeros(0)
+        return np.zeros(0, dtype=np.float64)
     if (not isinstance(fs, (int, np.integer)) or fs <= 0 or
             not isinstance(octave_shift, (int, np.integer)) or
             not np.all(np.isfinite([tail, glide])) or tail < 0 or glide <= 0):
