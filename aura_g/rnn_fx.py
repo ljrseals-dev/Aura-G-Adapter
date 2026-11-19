@@ -1,4 +1,5 @@
-"""Sample-rate-independent RNN FX with interpolation-filter resampling."""
+"""Sample-rate-independent RNN FX with band-limited rational resampling."""
+from fractions import Fraction
 import numpy as np
 import torch
 import torch.nn as nn
@@ -6,38 +7,23 @@ import torchaudio.functional as F
 
 
 class InterpolationFilter(nn.Module):
-    """FIR prefilter followed by rational resampling when a rate change is needed."""
-    def __init__(self, taps=64, ratio=1.0, cutoff=0.45):
+    """Band-limited polyphase resampler; a 1:1 rate path is transparent."""
+    def __init__(self, ratio=1.0):
         super().__init__()
-        if not isinstance(taps, int) or taps < 2:
-            raise ValueError("taps must be an integer >= 2")
         if not np.isfinite(ratio) or ratio <= 0:
             raise ValueError("resampling ratio must be finite and positive")
-        if not np.isfinite(cutoff) or not 0 < cutoff < 0.5:
-            raise ValueError("cutoff must be between 0 and Nyquist")
-        self.taps = taps
-        n = np.arange(taps) - (taps - 1) / 2
-        h = np.sinc(2 * cutoff * n) * np.kaiser(taps, 8.0)
-        h = h / h.sum()
-        self.register_buffer("kernel", torch.tensor(h, dtype=torch.float32))
         self.ratio = float(ratio)
+        fraction = Fraction(self.ratio).limit_denominator(1000)
+        self.up, self.down = fraction.numerator, fraction.denominator
 
     def forward(self, x):
         if x.ndim != 2:
             raise ValueError("resampler input must have shape [batch, samples]")
         if not x.is_floating_point():
             raise TypeError("resampler input must be floating point")
-        if x.shape[-1] == 0:
+        if x.shape[-1] == 0 or self.up == self.down:
             return x
-        # A same-rate path must be transparent: filtering here added two
-        # unnecessary FIR stages and 63 samples of group delay per stage.
-        if self.ratio == 1.0:
-            return x
-        kernel = self.kernel.to(device=x.device, dtype=x.dtype).flip(0).view(1, 1, -1)
-        padded = torch.nn.functional.pad(x.unsqueeze(1), (self.taps - 1, 0))
-        filtered = torch.nn.functional.conv1d(padded, kernel).squeeze(1)
-        new_length = max(1, int(round(filtered.shape[-1] * self.ratio)))
-        return F.resample(filtered, filtered.shape[-1], new_length)
+        return F.resample(x, self.down, self.up)
 
 
 class GRUFX(nn.Module):
@@ -75,7 +61,7 @@ class GRUFX(nn.Module):
 
 
 class SampleRateIndependentFX(nn.Module):
-    """Wraps a GRU FX with interpolation filters on input and output."""
+    """Wraps a GRU FX with band-limited input and output rate conversion."""
     def __init__(self, sr_in=48000, sr_internal=48000, hidden=32):
         super().__init__()
         if (not isinstance(sr_in, int) or sr_in <= 0 or
@@ -98,8 +84,8 @@ class SampleRateIndependentFX(nn.Module):
         x = self.pre(x)
         x = self.fx(x, latent)
         x = self.post(x)
-        # Rational rounding at the two conversion boundaries can differ by
-        # one sample. Keep the public contract duration/shape preserving.
+        # The two rational conversions can round by one sample at the
+        # boundaries. Preserve the public shape and duration contract.
         if x.shape[-1] > original_length:
             return x[..., :original_length]
         if x.shape[-1] < original_length:
