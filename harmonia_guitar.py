@@ -81,8 +81,8 @@ def _build_midi_bytes(notes, bpm=120, tpq=480):
     for note in notes:
         if not isinstance(note.midi, (int, np.integer)) or not 0 <= note.midi <= 127:
             raise ValueError("note MIDI pitch must be in [0, 127]")
-        if not isinstance(note.vel, (int, np.integer)) or not 0 <= note.vel <= 127:
-            raise ValueError("note velocity must be in [0, 127]")
+        if not isinstance(note.vel, (int, np.integer)) or not 1 <= note.vel <= 127:
+            raise ValueError("MIDI note-on velocity must be in [1, 127]; zero is a note-off")
         try:
             start_seconds, duration_seconds = float(note.start), float(note.dur)
         except (TypeError, ValueError, OverflowError):
