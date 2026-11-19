@@ -143,9 +143,10 @@ class PhysicalGuitarModel:
                 break
             gesture = bus.get_pitch_gesture()
             dynamics = float(gesture[6])
-            if dynamics >= gate:
+            confidence = bus.get_pitch_confidence()
+            if dynamics >= gate and confidence >= 0.5:
                 midi_value = 69.0 + 72.0 * float(gesture[0])
-                if 0.0 <= midi_value <= 127.0:
+                if np.isfinite(midi_value) and 0.0 <= midi_value <= 127.0:
                     midi = int(round(midi_value))
                     onset = float(gesture[1]) > 0.5
                     if onset or midi != self._active_midi:
