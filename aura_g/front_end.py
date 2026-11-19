@@ -10,8 +10,10 @@ def yin_pitch(frame, sr, fmin=70.0, fmax=1200.0, threshold=0.15):
     frame = np.asarray(frame, dtype=np.float64)
     if frame.ndim != 1 or len(frame) < 4 or not np.all(np.isfinite(frame)):
         return 0.0, 0.0
-    if sr <= 0 or fmin <= 0 or fmax <= fmin:
-        raise ValueError("sr and pitch bounds must be positive, with fmax > fmin")
+    if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
+            not np.all(np.isfinite([fmin, fmax, threshold])) or
+            fmin <= 0 or fmax <= fmin or not 0 < threshold < 1):
+        raise ValueError("invalid sample rate, pitch bounds, or YIN threshold")
     frame = frame - np.mean(frame)
     tau_min = max(2, int(sr / fmax))
     tau_max = min(int(sr / fmin), len(frame) - 1)
@@ -43,6 +45,8 @@ def spectral_features(frame, sr):
     frame = np.asarray(frame, dtype=np.float64)
     if frame.ndim != 1 or len(frame) == 0 or not np.all(np.isfinite(frame)):
         raise ValueError("frame must be a non-empty finite mono array")
+    if not isinstance(sr, (int, np.integer)) or sr <= 0:
+        raise ValueError("sample rate must be a positive integer")
     spec = np.abs(np.fft.rfft(frame * np.hanning(len(frame))))
     freqs = np.fft.rfftfreq(len(frame), 1 / sr)
     total = spec.sum() + 1e-9
@@ -67,7 +71,10 @@ def spectral_features(frame, sr):
 
 class FrontEndAnalyzer:
     def __init__(self, sr=48000, hop=480, win=2048, fmin=70.0, fmax=1200.0):
-        if sr <= 0 or hop <= 0 or win < 4 or fmin <= 0 or fmax <= fmin:
+        if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
+                not isinstance(hop, (int, np.integer)) or hop <= 0 or
+                not isinstance(win, (int, np.integer)) or win < 4 or
+                not np.all(np.isfinite([fmin, fmax])) or fmin <= 0 or fmax <= fmin):
             raise ValueError("invalid sample rate, hop, window, or pitch bounds")
         self.sr, self.hop, self.win = int(sr), int(hop), int(win)
         self.fmin, self.fmax = float(fmin), float(fmax)
