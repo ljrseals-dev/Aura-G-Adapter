@@ -12,12 +12,15 @@ def hz_to_midi(f0):
 
 
 def midi_to_name(m):
-    if not 0 <= int(m) <= 127:
-        raise ValueError("MIDI note must be in [0, 127]")
+    if not isinstance(m, (int, np.integer)) or not 0 <= m <= 127:
+        raise ValueError("MIDI note must be an integer in [0, 127]")
     return f"{NOTE_NAMES[m % 12]}{m // 12 - 1}"
 
 
 def fingering_from_midi(midi, max_fret=15):
+    if (not isinstance(midi, (int, np.integer)) or not 0 <= midi <= 127 or
+            not isinstance(max_fret, (int, np.integer)) or max_fret < 0):
+        raise ValueError("MIDI note must be in [0, 127] and max_fret a non-negative integer")
     candidates = []
     for s, open_midi in enumerate(OPEN_STRINGS):
         fret = midi - open_midi
@@ -32,8 +35,10 @@ def fingering_from_midi(midi, max_fret=15):
 class TranscriptionEngine:
     """Monophonic note-event state machine; each note is emitted once with duration."""
     def __init__(self, sr=48000, hop=480, gate=0.02):
-        if sr <= 0 or hop <= 0 or gate < 0:
-            raise ValueError("invalid sample rate, hop, or gate")
+        if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
+                not isinstance(hop, (int, np.integer)) or hop <= 0 or
+                not np.isfinite(gate) or gate < 0):
+            raise ValueError("sample rate and hop must be positive integers; gate must be finite and non-negative")
         self.sr, self.hop, self.gate = int(sr), int(hop), float(gate)
         self.active_note = None
         self.frame_index = 0
