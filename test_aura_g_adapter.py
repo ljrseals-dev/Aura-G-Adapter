@@ -486,6 +486,10 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             extractor.apply(np.array([1 + 1j, 0j]))
 
+    def test_blind_extractor_requires_usable_window_size(self):
+        with self.assertRaises(ValueError):
+            BlindExtractor(n_fft=2, hop=1)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
