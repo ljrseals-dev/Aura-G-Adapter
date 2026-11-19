@@ -6,7 +6,7 @@ class BlindExtractor:
     """Frequency-domain Wiener-style inversion for approximately LTI effects."""
     def __init__(self, sr=48000, n_fft=4096, hop=1024, reg=1e-3):
         if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
-                not isinstance(n_fft, (int, np.integer)) or n_fft < 2 or
+                not isinstance(n_fft, (int, np.integer)) or n_fft < 4 or
                 not isinstance(hop, (int, np.integer)) or hop <= 0 or hop > n_fft // 2 or
                 not np.isfinite(reg) or reg <= 0):
             raise ValueError("sr and n_fft must be positive integers; hop must be in [1, n_fft//2]; regularization must be finite and positive")
