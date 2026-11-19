@@ -95,7 +95,10 @@ class BodyResonance:
         return y
 
     def __call__(self, x):
-        y = np.asarray(x, dtype=np.float64).copy()
+        raw = np.asarray(x)
+        if np.iscomplexobj(raw):
+            raise ValueError("body input must be real-valued")
+        y = np.asarray(raw, dtype=np.float64).copy()
         if y.ndim != 1:
             raise ValueError("body input must be mono")
         for f0, Q, gain in self.modes:
