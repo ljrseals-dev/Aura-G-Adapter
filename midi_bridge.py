@@ -20,15 +20,15 @@ def register_transcriber(fn):
 
 def _yin(frame, sr, fmin=70.0, fmax=1200.0, thr=0.15):
     """YIN fundamental frequency estimator."""
+    if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
+            not np.isfinite(fmin) or not np.isfinite(fmax) or
+            not 0 < fmin < fmax or not np.isfinite(thr) or not 0 < thr < 1):
+        raise ValueError("invalid YIN sample rate, frequency bounds, or threshold")
     frame = np.asarray(frame, dtype=np.float64)
     if frame.ndim != 1 or len(frame) < 4 or not np.all(np.isfinite(frame)):
         return 0.0, 1.0
     if np.max(np.abs(frame)) <= 1e-12:
         return 0.0, 1.0
-    if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
-            not np.isfinite(fmin) or not np.isfinite(fmax) or
-            not 0 < fmin < fmax or not np.isfinite(thr) or not 0 < thr < 1):
-        raise ValueError("invalid YIN sample rate, frequency bounds, or threshold")
     n = len(frame)
     tmax = min(int(sr / fmin), n - 1)
     tmin = max(2, int(sr / fmax))
