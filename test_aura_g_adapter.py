@@ -538,5 +538,17 @@ class T(unittest.TestCase):
         self.assertTrue(np.all(np.isfinite(rendered_aura)))
         self.assertTrue(np.all(np.isfinite(rendered_bridge)))
 
+    def test_physical_sequence_bypasses_midi_pitch_above_sample_rate_nyquist(self):
+        from aura_g.physical_model import PhysicalGuitarModel
+        model = PhysicalGuitarModel(sr=22050)
+        bus = LatentBus(sample_rate=22050, hop=220)
+        bus.write_pitch_gesture((127 - 69) / 72.0, 1.0, 0.0, 0.5, 0.0, 0.3, 0.8, 0.0)
+        bus.write_pitch_confidence(1.0)
+        output = model.synthesize_sequence([bus], 220)
+        self.assertEqual(output.shape, (220,))
+        self.assertTrue(np.all(np.isfinite(output)))
+        with self.assertRaises(ValueError):
+            model.string.pluck(fret=0, pluck_pos=0.3, dynamics=0.8)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
