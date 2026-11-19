@@ -48,6 +48,9 @@ class TranscriptionEngine:
             note = self.active_note
             note["end"] = max(float(end_time), note["start"])
             note["duration"] = note["end"] - note["start"]
+            confidence_sum = note.pop("_confidence_sum", note.get("confidence", 0.0))
+            confidence_frames = note.pop("_confidence_frames", 1)
+            note["confidence"] = float(np.clip(confidence_sum / max(confidence_frames, 1), 0.0, 1.0))
             self.active_note = None
             return note
         return None
@@ -64,18 +67,24 @@ class TranscriptionEngine:
             t = self.frame_index * self.hop / self.sr
             midi = (int(round(midi_value))
                     if confidence >= 0.5 and dynamics >= self.gate and
-                    np.isfinite(midi_value) and 0 <= midi_value <= 127 else 0)
-            if self.active_note is not None and (midi == 0 or midi != self.active_note["midi"] or onset):
+                    np.isfinite(midi_value) and 0 <= midi_value <= 127 else None)
+            if self.active_note is not None and (midi is None or midi != self.active_note["midi"] or onset):
                 closed = self._close_active(t)
                 if closed is not None:
                     events.append(closed)
-            if self.active_note is None and midi > 0:
+            if self.active_note is None and midi is not None:
                 fing = fingering_from_midi(midi)
                 self.active_note = {
                     "start": t, "midi": midi, "name": midi_to_name(midi),
                     "string": fing[0] if fing else -1, "fret": fing[1] if fing else -1,
-                    "confidence": 1.0, "velocity": float(np.clip(dynamics, 0, 1)),
+                    "confidence": float(np.clip(confidence, 0.0, 1.0)),
+                    "_confidence_sum": float(np.clip(confidence, 0.0, 1.0)),
+                    "_confidence_frames": 1,
+                    "velocity": float(np.clip(dynamics, 0, 1)),
                 }
+            elif self.active_note is not None:
+                self.active_note["_confidence_sum"] += float(np.clip(confidence, 0.0, 1.0))
+                self.active_note["_confidence_frames"] += 1
             self.frame_index += 1
         return events
 
