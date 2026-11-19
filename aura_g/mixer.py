@@ -9,7 +9,10 @@ class RoutingMatrix:
     def blend(self, amp_out, fx_out, phys_out, length):
         if not isinstance(length, (int, np.integer)) or length < 0:
             raise ValueError("length must be a non-negative integer")
-        weights = np.asarray(self.weights, dtype=np.float64)
+        raw_weights = np.asarray(self.weights)
+        if np.iscomplexobj(raw_weights):
+            raise ValueError("mixer weights must be real-valued")
+        weights = np.asarray(raw_weights, dtype=np.float64)
         if (weights.shape != (3,) or not np.all(np.isfinite(weights)) or
                 np.any(weights < 0) or not np.isclose(weights.sum(), 1.0, atol=1e-8)):
             raise ValueError("mixer weights must be three finite non-negative values summing to one")
