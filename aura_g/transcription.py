@@ -6,8 +6,9 @@ OPEN_STRINGS = [40, 45, 50, 55, 59, 64]
 
 
 def hz_to_midi(f0):
+    """Convert positive frequency to MIDI; return None when no pitch exists."""
     if not np.isfinite(f0) or f0 <= 0:
-        return 0
+        return None
     return int(round(69 + 12 * np.log2(f0 / 440.0)))
 
 
