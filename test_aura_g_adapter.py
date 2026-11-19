@@ -490,6 +490,18 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             BlindExtractor(n_fft=2, hop=1)
 
+    def test_demo_wav_decoder_centers_unsigned_pcm_and_rejects_non_finite(self):
+        from demo_aura_g import decode_wav_audio
+        decoded = decode_wav_audio(np.array([0, 128, 255], dtype=np.uint8))
+        self.assertAlmostEqual(decoded[0], -1.0)
+        self.assertAlmostEqual(decoded[1], 0.0)
+        self.assertGreater(decoded[2], 0.98)
+        stereo = decode_wav_audio(np.array([[0, 255], [128, 128]], dtype=np.uint8))
+        self.assertEqual(stereo.shape, (2,))
+        with self.assertRaises(ValueError):
+            decode_wav_audio(np.array([0.0, np.nan]))
+        self.assertEqual(decode_wav_audio(np.zeros(0, dtype=np.uint8)).shape, (0,))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
