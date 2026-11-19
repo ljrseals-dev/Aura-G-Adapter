@@ -57,3 +57,20 @@ The adapter regression suite now passes with 14 tests, including a format-1 fixt
 ## Safety of repository changes
 
 All changes are on `repair/aura-g-processing-corrections`. The existing `main` branch was not modified, force-pushed, or merged. The repair branch is intended for review and CI validation before integration.
+
+## Follow-up defect fixes (2026-11-19)
+
+A deeper pass after the initial green smoke run found additional defects that were not covered by the original tests:
+
+- MIDI note-on events for an already-active pitch on the same track/channel overwrote the first note. The parser now keeps a FIFO queue of overlapping voices and pairs each note-off with the oldest open voice.
+- MIDI writer tempo values could overflow the Standard MIDI File 24-bit tempo field. The writer now validates the representable range and accepts NumPy integer TPQ values.
+- The latent bus now validates its 32-value vector, sample rate, and hop; write methods reject non-finite/wrong-sized data; getters return copies rather than mutable views.
+- The GRU effects path now bypasses conversion at equal sample rates and uses a bounded rational up/down ratio for torchaudio resampling. It validates batch/latent shapes, preserves the public sample count, and returns empty input safely.
+- The fallback MIDI bridge now validates mono finite input, handles empty and exact-window clips, and bounds the YIN lag search. The adapter and fallback YIN estimators explicitly reject silent frames rather than reporting a spurious pitch.
+- The physical string starts silent until plucked, rejects fundamentals above Nyquist, and validates body resonator modes and synthesis controls. The adapter rejects non-finite synthesis controls and malformed note timing/velocity before rendering.
+
+### Follow-up verification
+
+Run #44466498199 on the earlier follow-up commit had a passing full-pipeline job (3 tests) and an adapter job with 20 passing tests plus one failing newly authored MIDI overlap fixture. The failure was in the test fixture's end-of-track byte construction, not a parser assertion; the fixture was corrected to use explicit byte values. Additional regression cases were then added for silent YIN frames and unplucked-string silence.
+
+**The corrected, latest follow-up changes have not yet received a completed CI run.** Do not treat the earlier green run or the partially passing run above as verification of this latest state.
