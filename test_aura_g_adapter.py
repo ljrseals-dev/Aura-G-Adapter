@@ -445,6 +445,34 @@ class T(unittest.TestCase):
         self.assertLess(buses[0].get_pitch_confidence(), 0.5)
         self.assertEqual(TranscriptionEngine(sr=SR, hop=480).process(buses), [])
 
+    def test_mixer_morph_clamps_unbounded_finite_macros(self):
+        from aura_g.mixer import RoutingMatrix
+        mixer = RoutingMatrix()
+        latent = np.zeros(32)
+        latent[16:19] = [1e300, -1e300, 1e300]
+        weights = mixer.morph(latent)
+        self.assertTrue(np.all(np.isfinite(weights)))
+        self.assertTrue(np.all(weights >= 0))
+        self.assertAlmostEqual(float(weights.sum()), 1.0)
+
+    def test_physical_model_resets_pitch_after_invalid_control_frame(self):
+        from aura_g.physical_model import PhysicalGuitarModel
+        model = PhysicalGuitarModel(sr=SR)
+        calls = []
+        original = model.string.pluck
+        def tracked(*args, **kwargs):
+            calls.append(1)
+            return original(*args, **kwargs)
+        model.string.pluck = tracked
+        valid = LatentBus(sample_rate=SR, hop=480)
+        valid.write_pitch_gesture((72 - 69) / 72.0, 0.0, 0.0, 0.5, 0.0, 0.3, 0.8, 0.0)
+        invalid = LatentBus(sample_rate=SR, hop=480)
+        invalid.write_pitch_gesture(10.0, 0.0, 0.0, 0.5, 0.0, 0.3, 0.8, 0.0)
+        model.synthesize_sequence([valid], 480)
+        model.synthesize_sequence([invalid], 480)
+        model.synthesize_sequence([valid], 480)
+        self.assertEqual(len(calls), 2)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
