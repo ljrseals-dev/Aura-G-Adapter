@@ -230,6 +230,20 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             A.aura_g_transcribe(np.zeros(1024), SR, hop=0.5)
 
+    def test_midi_bridge_fallback_handles_empty_and_exact_window(self):
+        self.assertEqual(B.transcribe(np.zeros(0), SR), [])
+        time = np.arange(int(0.046 * SR)) / SR
+        audio = 0.2 * np.sin(2 * np.pi * 440 * time)
+        notes = B.transcribe(audio, SR, min_note=0.0)
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0].midi, 69)
+
+    def test_midi_bridge_rejects_invalid_audio(self):
+        with self.assertRaises(ValueError):
+            B.transcribe(np.zeros((2, 1024)), SR)
+        with self.assertRaises(ValueError):
+            B.transcribe(np.zeros(1024), 0)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
