@@ -502,6 +502,18 @@ class T(unittest.TestCase):
             decode_wav_audio(np.array([0.0, np.nan]))
         self.assertEqual(decode_wav_audio(np.zeros(0, dtype=np.uint8)).shape, (0,))
 
+    def test_front_end_yin_rejects_complex_frames(self):
+        from aura_g.front_end import yin_pitch
+        with self.assertRaises(ValueError):
+            yin_pitch(np.array([1 + 1j] * 128), SR)
+
+    def test_mixer_rejects_complex_weight_state(self):
+        from aura_g.mixer import RoutingMatrix
+        mixer = RoutingMatrix()
+        mixer.weights = np.array([0.5 + 1j, 0.3, 0.2])
+        with self.assertRaises(ValueError):
+            mixer.blend(np.zeros(4), np.zeros(4), np.zeros(4), 4)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
