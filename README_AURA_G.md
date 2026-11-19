@@ -5,13 +5,13 @@ The adapter connects AURA-G's NumPy/SciPy front end to the guitar / talk-box pip
 - `aura_g_transcribe(audio, sr)`: AURA-G's front end -> monophonic notes with estimated durations. The adapter uses a first-CMND-threshold-crossing YIN implementation to reduce octave errors and rebuilds note spans from the pitch/onset tracks.
 - `TunedWaveguideString`: fractional-delay waveguide synthesis with fret-aware fundamental tuning and a configurable T60 decay.
 - `render_talkbox_aura(notes)`: plucked-string source -> 48-section tract model. `register()` registers the AURA-G transcriber with `midi_bridge.transcribe()`.
-- `harmonia_guitar.py`: Karplus-Strong plucks and Standard MIDI File Type-0 helpers.
+- `harmonia_guitar.py`: Karplus-Strong plucks and bounded Standard MIDI File Type-0/1 helpers, including a merged tempo map for format 1.
 
 ## Validation scope
 
 The existing tests use synthetic monophonic guitar plucks. Historical results recorded before the repair branch (including the reported 10-note match and tuning/decay measurements) are project notes, not independently reproduced results from this repair session.
 
-The expanded regression suite now includes empty/short input, YIN pitch, transcription event lifecycle, malformed MIDI data, short blind-extraction training pairs, and fret-aware physical-model checks. Run it with:
+The adapter regression suite now includes empty/short input, YIN pitch, transcription event lifecycle, malformed MIDI data, format-1 tempo-map changes across tracks, overlapping same-pitch notes on separate tracks, short blind-extraction training pairs, and fret-aware physical-model checks. A separate `test_aura_g_pipeline.py` smoke suite exercises the complete Torch/torchaudio pipeline in CI. Run it with:
 
 ```sh
 python -m unittest -v test_aura_g_adapter
