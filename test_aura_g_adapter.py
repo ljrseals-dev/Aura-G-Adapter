@@ -343,11 +343,11 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             A.aura_g_transcribe(np.array([1 + 1j, 0j]), SR)
         with self.assertRaises(ValueError):
-            FrontEndAnalyzer(sr=SR).process(np.array([1 + 1j, 0j]))
+            list(FrontEndAnalyzer(sr=SR).process(np.array([1 + 1j, 0j])))
         with self.assertRaises(ValueError):
             B.transcribe(np.array([1 + 1j, 0j]), SR)
         with self.assertRaises(ValueError):
-            BlindExtractor(n_fft=4). _stft(np.array([1 + 1j, 0j, 0j, 0j]))
+            BlindExtractor(n_fft=4)._stft(np.array([1 + 1j, 0j, 0j, 0j]))
 
     def test_latent_bus_rejects_complex_values(self):
         with self.assertRaises(ValueError):
