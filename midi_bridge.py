@@ -73,7 +73,10 @@ def transcribe(audio, sr, hop=0.01, win=0.046, min_note=0.06, gate_db=-45.0):
             raise ValueError("audio must be finite mono input")
         return [n if isinstance(n, Note) else Note(*n) for n in _TRANSCRIBER(x, sr)]
 
-    x = np.asarray(audio, dtype=np.float64)
+    raw = np.asarray(audio)
+    if np.iscomplexobj(raw):
+        raise ValueError("audio must be real-valued")
+    x = np.asarray(raw, dtype=np.float64)
     if x.ndim != 1 or not np.all(np.isfinite(x)):
         raise ValueError("audio must be finite mono input")
     H = int(round(hop * sr))
