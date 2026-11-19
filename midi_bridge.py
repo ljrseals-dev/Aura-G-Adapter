@@ -175,7 +175,8 @@ def render_talkbox(notes, fs=48000, octave_shift=0, tail=0.8, glide=0.04):
     for i, nt in enumerate(sorted(notes, key=lambda z: z.start)):
         a = int(nt.start * fs)
         # G.pluck now maps directly to our updated Karplus-Strong
-        p = G.pluck(nt.midi + octave_shift, nt.dur + tail, 0.25 + 0.7 * nt.vel / 127, fs, seed=1000 + i)
+        velocity = 0.0 if nt.vel == 0 else 0.25 + 0.7 * nt.vel / 127
+        p = G.pluck(nt.midi + octave_shift, nt.dur + tail, velocity, fs, seed=1000 + i)
         src[a:a + len(p)] += p[:n - a]
         
         # Vowel curve: pitch class determines the ah..oo axis
