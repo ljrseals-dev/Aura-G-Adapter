@@ -77,9 +77,10 @@ def aura_g_transcribe(audio, sr, hop=480, min_gap=0.10, min_dur=0.06, gate=0.02)
     notes, current = [], None
     for i, bus in enumerate(history):
         gesture = bus.get_pitch_gesture()
-        # Zero log-pitch is A4; dynamics distinguishes silence.
-        f0 = 440.0 * 2 ** (gesture[0] * 6.0)
-        midi = int(round(69 + 12 * np.log2(f0 / 440.0))) if f0 > 0 else None
+        # Zero log-pitch is A4; confidence carries the unvoiced distinction.
+        midi_value = 69.0 + 72.0 * float(gesture[0])
+        confidence = bus.get_pitch_confidence()
+        midi = int(round(midi_value)) if confidence >= 0.5 and np.isfinite(midi_value) and 0 <= midi_value <= 127 else None
         dynamics, onset, t = float(gesture[6]), gesture[1] > 0.5, i * dt
         if current is not None and (midi is None or dynamics < gate or midi != current["midi"] or (onset and t - current["start"] > min_gap)):
             current["end"] = t
