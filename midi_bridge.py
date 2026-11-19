@@ -23,6 +23,8 @@ def _yin(frame, sr, fmin=70.0, fmax=1200.0, thr=0.15):
     frame = np.asarray(frame, dtype=np.float64)
     if frame.ndim != 1 or len(frame) < 4 or not np.all(np.isfinite(frame)):
         return 0.0, 1.0
+    if np.max(np.abs(frame)) <= 1e-12:
+        return 0.0, 1.0
     if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
             not np.isfinite(fmin) or not np.isfinite(fmax) or
             not 0 < fmin < fmax or not np.isfinite(thr) or not 0 < thr < 1):
