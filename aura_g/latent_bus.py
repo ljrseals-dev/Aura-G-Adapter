@@ -8,7 +8,8 @@ PITCH_GESTURE = slice(0, 8)
 TIMBRE = slice(8, 16)
 EXPRESSION = slice(16, 24)
 TRANSCRIPTION = slice(24, 28)
-RESERVED = slice(28, 32)
+PITCH_CONFIDENCE_INDEX = 28
+RESERVED = slice(29, 32)
 
 
 class LatentBus:
@@ -48,6 +49,18 @@ class LatentBus:
         self._vector[PITCH_GESTURE] = self._values(
             [f0_log_hz, onset, bend, vib_rate, vib_depth,
              pluck_pos, dynamics, palm_mute], 8, "pitch gesture")
+        # Manual producers that supply a pitch gesture retain the historical
+        # valid-pitch default; analyzers can overwrite it with measured YIN confidence.
+        self._vector[PITCH_CONFIDENCE_INDEX] = 1.0
+
+    def write_pitch_confidence(self, confidence):
+        value = self._values([confidence], 1, "pitch confidence")[0]
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("pitch confidence must be in [0,1]")
+        self._vector[PITCH_CONFIDENCE_INDEX] = value
+
+    def get_pitch_confidence(self):
+        return float(self._vector[PITCH_CONFIDENCE_INDEX])
 
     def write_timbre(self, centroid, rolloff, flatness, zcr,
                      harmonic_ratio, even_odd, attack_slope, sustain):
