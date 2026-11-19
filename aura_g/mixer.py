@@ -35,7 +35,7 @@ class RoutingMatrix:
         latent_vector = np.asarray(raw, dtype=np.float64)
         if latent_vector.shape != (32,) or not np.all(np.isfinite(latent_vector)):
             raise ValueError("latent vector must be a finite 32-dimensional vector")
-        expr = latent_vector[16:24]
+        expr = np.clip(latent_vector[16:24], 0.0, 1.0)
         weights = np.array([0.3 + 0.4 * expr[0],
                             0.1 + 0.5 * expr[1],
                             0.1 + 0.4 * expr[2]], dtype=np.float64)
