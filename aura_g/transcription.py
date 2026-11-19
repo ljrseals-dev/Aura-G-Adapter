@@ -2,17 +2,26 @@
 import numpy as np
 
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-OPEN_STRINGS = [40, 45, 50, 55, 59, 64]  # E2 A2 D3 G3 B3 E4
+OPEN_STRINGS = [40, 45, 50, 55, 59, 64]
+
 
 def hz_to_midi(f0):
-    if f0 <= 0:
-        return 0
+    """Convert positive frequency to MIDI; return None when no pitch exists."""
+    if not np.isfinite(f0) or f0 <= 0:
+        return None
     return int(round(69 + 12 * np.log2(f0 / 440.0)))
 
+
 def midi_to_name(m):
+    if not isinstance(m, (int, np.integer)) or not 0 <= m <= 127:
+        raise ValueError("MIDI note must be an integer in [0, 127]")
     return f"{NOTE_NAMES[m % 12]}{m // 12 - 1}"
 
+
 def fingering_from_midi(midi, max_fret=15):
+    if (not isinstance(midi, (int, np.integer)) or not 0 <= midi <= 127 or
+            not isinstance(max_fret, (int, np.integer)) or max_fret < 0):
+        raise ValueError("MIDI note must be in [0, 127] and max_fret a non-negative integer")
     candidates = []
     for s, open_midi in enumerate(OPEN_STRINGS):
         fret = midi - open_midi
@@ -20,43 +29,68 @@ def fingering_from_midi(midi, max_fret=15):
             candidates.append((s, fret))
     if not candidates:
         return None
-    scored = [(s, f, abs(f - 5) * 0.5 + s * 0.1) for s, f in candidates]
-    scored.sort(key=lambda x: x[2])
-    s, f, _ = scored[0]
+    s, f = min(candidates, key=lambda x: (abs(x[1] - 5) * 0.5 + x[0] * 0.1))
     return s, f
 
+
 class TranscriptionEngine:
-    def __init__(self, sr=48000, hop=480):
-        self.sr = sr
-        self.hop = hop
+    """Monophonic note-event state machine; each note is emitted once with duration."""
+    def __init__(self, sr=48000, hop=480, gate=0.02):
+        if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
+                not isinstance(hop, (int, np.integer)) or hop <= 0 or
+                not np.isfinite(gate) or gate < 0):
+            raise ValueError("sample rate and hop must be positive integers; gate must be finite and non-negative")
+        self.sr, self.hop, self.gate = int(sr), int(hop), float(gate)
         self.active_note = None
+        self.frame_index = 0
+
+    def _close_active(self, end_time):
+        if self.active_note is not None:
+            note = self.active_note
+            note["end"] = max(float(end_time), note["start"])
+            note["duration"] = note["end"] - note["start"]
+            confidence_sum = note.pop("_confidence_sum", note.get("confidence", 0.0))
+            confidence_frames = note.pop("_confidence_frames", 1)
+            note["confidence"] = float(np.clip(confidence_sum / max(confidence_frames, 1), 0.0, 1.0))
+            self.active_note = None
+            return note
+        return None
 
     def process(self, bus_history):
         events = []
-        for i, bus in enumerate(bus_history):
+        for bus in bus_history:
             pg = bus.get_pitch_gesture()
-            f0 = 440.0 * (2 ** (pg[0] * 6.0)) if pg[0] != 0 else 0.0
+            # Zero log-pitch is A4; measured confidence distinguishes unvoiced frames.
+            midi_value = 69.0 + 72.0 * float(pg[0])
             onset = pg[1] > 0.5
-            dynamics = pg[6]
-
-            if onset and f0 > 0:
-                if self.active_note is not None:
-                    events.append(self.active_note)
-                midi = hz_to_midi(f0)
+            dynamics = float(pg[6])
+            confidence = bus.get_pitch_confidence()
+            t = self.frame_index * self.hop / self.sr
+            midi = (int(round(midi_value))
+                    if confidence >= 0.5 and dynamics >= self.gate and
+                    np.isfinite(midi_value) and 0 <= midi_value <= 127 else None)
+            if self.active_note is not None and (midi is None or midi != self.active_note["midi"] or onset):
+                closed = self._close_active(t)
+                if closed is not None:
+                    events.append(closed)
+            if self.active_note is None and midi is not None:
                 fing = fingering_from_midi(midi)
                 self.active_note = {
-                    'start': i * self.hop / self.sr,
-                    'midi': midi,
-                    'name': midi_to_name(midi),
-                    'string': fing[0] if fing else -1,
-                    'fret': fing[1] if fing else -1,
-                    'confidence': 1.0,
-                    'velocity': float(dynamics),
+                    "start": t, "midi": midi, "name": midi_to_name(midi),
+                    "string": fing[0] if fing else -1, "fret": fing[1] if fing else -1,
+                    "confidence": float(np.clip(confidence, 0.0, 1.0)),
+                    "_confidence_sum": float(np.clip(confidence, 0.0, 1.0)),
+                    "_confidence_frames": 1,
+                    "velocity": float(np.clip(dynamics, 0, 1)),
                 }
-                bus.write_transcription(midi / 127.0,
-                                        (fing[0] if fing else -1) / 5.0,
-                                        (fing[1] if fing else -1) / 24.0,
-                                        1.0)
-        if self.active_note is not None:
-            events.append(self.active_note)
+            elif self.active_note is not None:
+                self.active_note["_confidence_sum"] += float(np.clip(confidence, 0.0, 1.0))
+                self.active_note["_confidence_frames"] += 1
+            self.frame_index += 1
         return events
+
+    def flush(self):
+        """Close and return the final active note at end of stream."""
+        end_time = self.frame_index * self.hop / self.sr
+        note = self._close_active(end_time)
+        return [note] if note is not None else []

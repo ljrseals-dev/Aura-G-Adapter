@@ -1,47 +1,91 @@
 """Shared Latent Control Bus — the core abstraction of AURA-G."""
-from dataclasses import dataclass, field
 import numpy as np
 
 BUS_DIM = 32
 HOP_SECONDS = 0.01  # 100 Hz update rate
 
 PITCH_GESTURE = slice(0, 8)
-TIMBRE        = slice(8, 16)
-EXPRESSION    = slice(16, 24)
+TIMBRE = slice(8, 16)
+EXPRESSION = slice(16, 24)
 TRANSCRIPTION = slice(24, 28)
-RESERVED      = slice(28, 32)
+PITCH_CONFIDENCE_INDEX = 28
+RESERVED = slice(29, 32)
 
-@dataclass
+
 class LatentBus:
-    """32-dim control vector shared across all AURA-G modules."""
-    vector: np.ndarray = field(default_factory=lambda: np.zeros(BUS_DIM, dtype=np.float32))
-    sample_rate: int = 48000
-    hop: int = 480
+    """Validated 32-dimensional control vector with copy-only public access."""
+    def __init__(self, vector=None, sample_rate=48000, hop=480):
+        if (not isinstance(sample_rate, (int, np.integer)) or sample_rate <= 0 or
+                not isinstance(hop, (int, np.integer)) or hop <= 0):
+            raise ValueError("sample_rate and hop must be positive integers")
+        if vector is None:
+            vector = np.zeros(BUS_DIM, dtype=np.float32)
+        raw = np.asarray(vector)
+        if np.iscomplexobj(raw):
+            raise ValueError("latent vector must be real-valued")
+        values = np.asarray(raw, dtype=np.float32)
+        if values.shape != (BUS_DIM,) or not np.all(np.isfinite(values)):
+            raise ValueError("latent vector must be finite and have exactly 32 elements")
+        self.sample_rate, self.hop = int(sample_rate), int(hop)
+        self._vector = values.copy()
+
+    @property
+    def vector(self):
+        """Return a snapshot; mutation must go through validated write methods."""
+        return self._vector.copy()
+
+    @staticmethod
+    def _values(values, count, label):
+        raw = np.asarray(values)
+        if np.iscomplexobj(raw):
+            raise ValueError(f"{label} must be real-valued")
+        result = np.asarray(raw, dtype=np.float32)
+        if result.shape != (count,) or not np.all(np.isfinite(result)):
+            raise ValueError(f"{label} must contain {count} finite values")
+        return result
 
     def write_pitch_gesture(self, f0_log_hz, onset, bend, vib_rate, vib_depth,
                             pluck_pos, dynamics, palm_mute):
-        self.vector[PITCH_GESTURE] = np.array(
+        self._vector[PITCH_GESTURE] = self._values(
             [f0_log_hz, onset, bend, vib_rate, vib_depth,
-             pluck_pos, dynamics, palm_mute], dtype=np.float32)
+             pluck_pos, dynamics, palm_mute], 8, "pitch gesture")
+        # Manual producers that supply a pitch gesture retain the historical
+        # valid-pitch default; analyzers can overwrite it with measured YIN confidence.
+        self._vector[PITCH_CONFIDENCE_INDEX] = 1.0
+
+    def write_pitch_confidence(self, confidence):
+        value = self._values([confidence], 1, "pitch confidence")[0]
+        if not 0.0 <= value <= 1.0:
+            raise ValueError("pitch confidence must be in [0,1]")
+        self._vector[PITCH_CONFIDENCE_INDEX] = value
+
+    def get_pitch_confidence(self):
+        return float(self._vector[PITCH_CONFIDENCE_INDEX])
 
     def write_timbre(self, centroid, rolloff, flatness, zcr,
                      harmonic_ratio, even_odd, attack_slope, sustain):
-        self.vector[TIMBRE] = np.array(
+        self._vector[TIMBRE] = self._values(
             [centroid, rolloff, flatness, zcr,
-             harmonic_ratio, even_odd, attack_slope, sustain], dtype=np.float32)
+             harmonic_ratio, even_odd, attack_slope, sustain], 8, "timbre")
 
     def write_expression(self, macros: np.ndarray):
-        assert macros.shape == (8,)
-        self.vector[EXPRESSION] = macros.astype(np.float32)
+        self._vector[EXPRESSION] = self._values(macros, 8, "expression macros")
 
     def write_transcription(self, note_id, string, fret, confidence):
-        self.vector[TRANSCRIPTION] = np.array(
-            [note_id, string, fret, confidence], dtype=np.float32)
+        self._vector[TRANSCRIPTION] = self._values(
+            [note_id, string, fret, confidence], 4, "transcription")
 
     def read(self):
-        return self.vector.copy()
+        return self._vector.copy()
 
-    def get_pitch_gesture(self): return self.vector[PITCH_GESTURE]
-    def get_timbre(self):        return self.vector[TIMBRE]
-    def get_expression(self):    return self.vector[EXPRESSION]
-    def get_transcription(self): return self.vector[TRANSCRIPTION]
+    def get_pitch_gesture(self):
+        return self._vector[PITCH_GESTURE].copy()
+
+    def get_timbre(self):
+        return self._vector[TIMBRE].copy()
+
+    def get_expression(self):
+        return self._vector[EXPRESSION].copy()
+
+    def get_transcription(self):
+        return self._vector[TRANSCRIPTION].copy()
