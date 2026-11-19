@@ -35,7 +35,10 @@ class LatentBus:
 
     @staticmethod
     def _values(values, count, label):
-        result = np.asarray(values, dtype=np.float32)
+        raw = np.asarray(values)
+        if np.iscomplexobj(raw):
+            raise ValueError(f"{label} must be real-valued")
+        result = np.asarray(raw, dtype=np.float32)
         if result.shape != (count,) or not np.all(np.isfinite(result)):
             raise ValueError(f"{label} must contain {count} finite values")
         return result
