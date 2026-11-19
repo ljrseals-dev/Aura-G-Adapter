@@ -19,8 +19,8 @@ class InterpolationFilter(nn.Module):
     def forward(self, x):
         if x.ndim != 2:
             raise ValueError("resampler input must have shape [batch, samples]")
-        if not x.is_floating_point():
-            raise TypeError("resampler input must be floating point")
+        if x.dtype not in (torch.float32, torch.float64):
+            raise TypeError("resampler supports float32 and float64 audio tensors")
         if x.shape[-1] == 0 or self.up == self.down:
             return x
         return F.resample(x, self.down, self.up)
@@ -40,17 +40,25 @@ class GRUFX(nn.Module):
         self.latent_proj = nn.Linear(32, hidden)
 
     def forward(self, x, latent: torch.Tensor = None):
-        if x.ndim != 2 or not x.is_floating_point():
+        if not isinstance(x, torch.Tensor) or x.ndim != 2 or not x.is_floating_point():
             raise ValueError("GRU input must be a floating [batch, samples] tensor")
         if x.shape[-1] == 0:
             return x
+        if x.shape[0] == 0 or x.dtype not in (torch.float32, torch.float64):
+            raise ValueError("GRU input must have a non-empty batch and float32/float64 dtype")
+        if not torch.isfinite(x).all():
+            raise ValueError("GRU input contains NaN or infinity")
         if x.dtype != self.gru.weight_ih_l0.dtype:
             raise TypeError("GRU input dtype must match model parameter dtype")
         batch = x.shape[0]
         h0 = x.new_zeros(1, batch, self.gru.hidden_size)
         if latent is not None:
+            if not isinstance(latent, torch.Tensor) or latent.is_complex():
+                raise TypeError("latent input must be a real-valued tensor")
             if latent.shape != (batch, 32):
                 raise ValueError("latent input must have shape [batch, 32]")
+            if not torch.isfinite(latent).all():
+                raise ValueError("latent input contains NaN or infinity")
             if latent.device != x.device:
                 latent = latent.to(device=x.device)
             if latent.dtype != x.dtype:
@@ -76,8 +84,8 @@ class SampleRateIndependentFX(nn.Module):
         self.post = InterpolationFilter(ratio=ratio_out)
 
     def forward(self, x, latent=None):
-        if x.ndim != 2:
-            raise ValueError("FX input must have shape [batch, samples]")
+        if not isinstance(x, torch.Tensor) or x.ndim != 2:
+            raise ValueError("FX input must be a tensor with shape [batch, samples]")
         if x.shape[-1] == 0:
             return x
         original_length = x.shape[-1]
