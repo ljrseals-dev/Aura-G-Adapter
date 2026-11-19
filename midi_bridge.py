@@ -22,7 +22,7 @@ def _yin(frame, sr, fmin=70.0, fmax=1200.0, thr=0.15):
     """YIN fundamental frequency estimator."""
     if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
             not np.isfinite(fmin) or not np.isfinite(fmax) or
-            not 0 < fmin < fmax or not np.isfinite(thr) or not 0 < thr < 1):
+            not 0 < fmin < fmax or fmax >= sr / 2 or not np.isfinite(thr) or not 0 < thr < 1):
         raise ValueError("invalid YIN sample rate, frequency bounds, or threshold")
     raw = np.asarray(frame)
     if np.iscomplexobj(raw):
