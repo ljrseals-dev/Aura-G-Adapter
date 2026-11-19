@@ -8,6 +8,7 @@ from aura_g.front_end import FrontEndAnalyzer
 from aura_g.latent_bus import LatentBus
 from aura_g.transcription import TranscriptionEngine
 from aura_g.blind_extractor import BlindExtractor
+import mouth_tract as M
 
 SR = 48000
 REF = [B.Note(0.1 + 0.45 * i, 0.4, m, 90) for i, m in enumerate([52, 55, 59, 57, 55, 52, 50, 47, 64, 62])]
@@ -354,6 +355,26 @@ class T(unittest.TestCase):
             LatentBus(vector=np.ones(32, dtype=np.complex128))
         with self.assertRaises(ValueError):
             LatentBus().write_expression(np.ones(8, dtype=np.complex128))
+
+    def test_mouth_tract_validates_shapes_controls_and_short_formants(self):
+        areas = M.area_function(0.5)
+        self.assertEqual(areas.shape, (48,))
+        self.assertTrue(np.all(np.isfinite(areas)))
+        with self.assertRaises(ValueError):
+            M.area_function(float("nan"))
+        with self.assertRaises(ValueError):
+            M.Tract(rg=1.0)
+        tract = M.Tract()
+        with self.assertRaises(ValueError):
+            tract.process(np.zeros(8), np.zeros(7))
+        with self.assertRaises(ValueError):
+            tract.process(np.zeros(8), np.zeros(8), block=0)
+        with self.assertRaises(ValueError):
+            tract.process(np.zeros(8, dtype=np.complex128), np.zeros(8))
+        self.assertEqual(tract.process(np.zeros(0), np.zeros(0)).shape, (0,))
+        self.assertIsInstance(M.formants(0.5, n=128), list)
+        with self.assertRaises(ValueError):
+            M.formants(0.5, n=2)
 
 
 if __name__ == "__main__":
