@@ -62,7 +62,9 @@ def aura_g_transcribe(audio, sr, hop=480, min_gap=0.10, min_dur=0.06, gate=0.02)
     if len(x) == 0:
         return []
     if sr != 48000:
-        x = signal.resample_poly(x, 48000, sr)
+        original_sr = int(sr)
+        x = signal.resample_poly(x, 48000, original_sr)
+        hop = max(1, int(round(hop * 48000 / original_sr)))
         sr = 48000
     history = list(FrontEndAnalyzer(sr=sr, hop=hop).process(x))
     dt = hop / sr
