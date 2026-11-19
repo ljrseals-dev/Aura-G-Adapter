@@ -33,6 +33,8 @@ class DigitalWaveguideString:
         if fret > max_fret:
             raise ValueError("fretted string fundamental must be below Nyquist")
         frequency = self.f0 * 2 ** (fret / 12.0)
+        if not np.isfinite(frequency) or frequency >= self.sr / 2:
+            raise ValueError("fretted string fundamental must be finite and below Nyquist")
         self.delay = max(2, int(round(self.sr / frequency)))
         idx = int(np.clip(round(pluck_pos * self.delay), 1, self.delay - 1))
         excitation = np.zeros(self.delay, dtype=np.float64)
@@ -149,12 +151,18 @@ class PhysicalGuitarModel:
                 if np.isfinite(midi_value) and 0.0 <= midi_value <= 127.0:
                     midi = int(round(midi_value))
                     onset = float(gesture[1]) > 0.5
-                    if onset or midi != self._active_midi:
-                        frequency = 440.0 * 2.0 ** ((midi - 69) / 12.0)
-                        self.string.f0 = frequency
-                        self.string.pluck(fret=0, pluck_pos=pluck_pos,
-                                          dynamics=float(np.clip(dynamics, 0.0, 1.0)))
-                        self._active_midi = midi
+                    frequency = 440.0 * 2.0 ** ((midi - 69) / 12.0)
+                    if frequency < self.sr / 2:
+                        if onset or midi != self._active_midi:
+                            self.string.f0 = frequency
+                            self.string.pluck(fret=0, pluck_pos=pluck_pos,
+                                              dynamics=float(np.clip(dynamics, 0.0, 1.0)))
+                            self._active_midi = midi
+                    else:
+                        # A valid MIDI pitch can still exceed Nyquist at a
+                        # low renderer sample rate; treat it as an invalid
+                        # control frame instead of raising from the DSP loop.
+                        self._active_midi = None
                 else:
                     self._active_midi = None
             else:
