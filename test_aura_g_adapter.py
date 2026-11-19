@@ -349,7 +349,7 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             B.transcribe(np.array([1 + 1j, 0j]), SR)
         with self.assertRaises(ValueError):
-            BlindExtractor(n_fft=4)._stft(np.array([1 + 1j, 0j, 0j, 0j]))
+            BlindExtractor(n_fft=4, hop=2)._stft(np.array([1 + 1j, 0j, 0j, 0j]))
 
     def test_latent_bus_rejects_complex_values(self):
         with self.assertRaises(ValueError):
@@ -472,6 +472,19 @@ class T(unittest.TestCase):
         model.synthesize_sequence([invalid], 480)
         model.synthesize_sequence([valid], 480)
         self.assertEqual(len(calls), 2)
+
+    def test_blind_extractor_overlap_add_covers_both_clip_edges(self):
+        extractor = BlindExtractor(n_fft=64, hop=16)
+        training = np.random.default_rng(8).normal(size=1024)
+        extractor.fit(training, training * 0.5)
+        output = extractor.apply(np.full(1000, 0.2))
+        self.assertEqual(output.shape, (1000,))
+        self.assertGreater(output[0], 0.05)
+        self.assertGreater(output[-1], 0.05)
+        with self.assertRaises(ValueError):
+            BlindExtractor(n_fft=64, hop=40)
+        with self.assertRaises(ValueError):
+            extractor.apply(np.array([1 + 1j, 0j]))
 
 
 if __name__ == "__main__":
