@@ -136,6 +136,7 @@ def _read_midi_impl(data):
         if end > len(data):
             raise ValueError("MIDI track extends beyond file")
         tick, running_status, sequence = 0, None, 0
+        saw_end_of_track = False
         while offset < end:
             delta, offset = _read_vlq(data, offset, end)
             tick += delta
@@ -152,13 +153,22 @@ def _read_midi_impl(data):
                 if offset + size > end:
                     raise ValueError("MIDI meta event exceeds track")
                 payload = data[offset:offset + size]
-                if kind == 0x51 and size == 3:
+                if kind == 0x51:
+                    if size != 3:
+                        raise ValueError("MIDI tempo meta event must contain exactly three bytes")
                     tempo = int.from_bytes(payload, "big")
                     if tempo == 0:
                         raise ValueError("MIDI tempo cannot be zero")
                     merged.append((tick, 0, track_index, sequence, "tempo", tempo))
                 offset += size
                 sequence += 1
+                if kind == 0x2F:
+                    if size != 0:
+                        raise ValueError("MIDI end-of-track event must be empty")
+                    if offset != end:
+                        raise ValueError("data follows MIDI end-of-track event")
+                    saw_end_of_track = True
+                    break
                 continue
             if status in (0xF0, 0xF7):
                 offset += 1
@@ -189,6 +199,8 @@ def _read_midi_impl(data):
             merged.append((tick, 1, track_index, sequence, "channel",
                            (status & 0x0F, command, first, second)))
             sequence += 1
+        if not saw_end_of_track:
+            raise ValueError("MIDI track is missing its end-of-track event")
         position = end
     if position != len(data):
         raise ValueError("unexpected data after declared MIDI tracks")
