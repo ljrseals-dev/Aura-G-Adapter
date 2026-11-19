@@ -60,10 +60,14 @@ def _read_vlq(data, offset, end=None):
 
 
 def _build_midi_bytes(notes, bpm=120, tpq=480):
-    if not np.isfinite(bpm) or bpm <= 0 or int(60e6 / bpm) < 1:
-        raise ValueError("bpm must produce a positive MIDI tempo")
-    if not isinstance(tpq, int) or not 1 <= tpq <= 0x7FFF:
+    if not np.isscalar(bpm) or not np.isfinite(bpm) or bpm <= 0:
+        raise ValueError("bpm must be finite and positive")
+    tempo_us = int(round(60e6 / float(bpm)))
+    if not 1 <= tempo_us <= 0xFFFFFF:
+        raise ValueError("bpm is outside the Standard MIDI 24-bit tempo range")
+    if not isinstance(tpq, (int, np.integer)) or not 1 <= tpq <= 0x7FFF:
         raise ValueError("tpq must be in [1, 32767]")
+    tpq = int(tpq)
     events = []
     for note in notes:
         if not np.isfinite(note.start) or not np.isfinite(note.dur) or note.start < 0 or note.dur <= 0:
@@ -77,7 +81,7 @@ def _build_midi_bytes(notes, bpm=120, tpq=480):
         events.extend([(start_tick, 1, bytes([0x90, note.midi, note.vel])),
                        (end_tick, 0, bytes([0x80, note.midi, 0]))])
     events.sort(key=lambda event: (event[0], event[1]))
-    track = bytearray(_vlq(0) + bytes([0xFF, 0x51, 3]) + struct.pack(">I", int(60e6 / bpm))[1:])
+    track = bytearray(_vlq(0) + bytes([0xFF, 0x51, 3]) + tempo_us.to_bytes(3, "big"))
     previous_tick = 0
     for tick, _, message in events:
         track.extend(_vlq(tick - previous_tick))
@@ -186,12 +190,17 @@ def _read_midi_impl(data):
         channel, command, pitch, velocity = payload
         key = (track_index, channel, pitch)
         if command == 0x90 and velocity > 0:
-            open_notes[key] = (elapsed, velocity)
+            # Repeated same-pitch note-ons may overlap on one track/channel.
+            # Preserve every voice; pair note-offs with the oldest open voice.
+            open_notes.setdefault(key, []).append((elapsed, velocity))
         elif command == 0x80 or (command == 0x90 and velocity == 0):
-            if key in open_notes:
-                start_time, start_velocity = open_notes.pop(key)
+            active = open_notes.get(key)
+            if active:
+                start_time, start_velocity = active.pop(0)
                 notes.append(Note(start_time, max(0.0, elapsed - start_time),
                                   pitch, start_velocity))
+                if not active:
+                    del open_notes[key]
     return sorted(notes, key=lambda note: (note.start, note.midi))
 
 def read_midi(path):
