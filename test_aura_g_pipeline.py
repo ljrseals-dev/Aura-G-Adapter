@@ -90,6 +90,17 @@ class PipelineSmokeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             Biquad(filter_type="not-a-filter")
 
+    def test_rnn_fx_rejects_non_finite_audio_and_latent(self):
+        engine = SampleRateIndependentFX(sr_in=48000, sr_internal=48000)
+        with self.assertRaises(ValueError):
+            engine(torch.tensor([[float("nan")]]))
+        with self.assertRaises(ValueError):
+            engine(torch.zeros(1, 32), torch.full((1, 32), float("inf")))
+        with self.assertRaises(TypeError):
+            engine(torch.zeros(1, 32), [0.0] * 32)
+        with self.assertRaises(TypeError):
+            InterpolationFilter()(torch.zeros(1, 16, dtype=torch.float16))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
