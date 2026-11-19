@@ -3,7 +3,7 @@
 **Assessment date:** 2026-11-19  
 **Target branch:** `main`  
 **Repair branch:** `repair/aura-g-processing-corrections`  
-**State:** Experimental; latest GitHub Actions run #44469877959 passed 50 adapter regression tests and 9 CPU PyTorch/torchaudio full-pipeline tests on branch head `a5b03625dd86bb39cc831ea980fb87e287672c40`; real-recording/audio-quality review remains open.
+**State:** Experimental; latest GitHub Actions run #44579206842 passed 53 adapter regression tests and 9 CPU PyTorch/torchaudio full-pipeline tests on commit `90c2cf20780eb746a24329b0adfa267f43cbca6d`; real-recording/audio-quality review remains open.
 
 ## Repository baseline
 
@@ -92,3 +92,20 @@ A second source-level review found defects outside the earlier smoke-test covera
 GitHub Actions run [#44469748793](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44469748793) passed on source commit `242f3778b967aad4f24fbda0637da8e74218e277` with 50 adapter regression tests and 9 CPU PyTorch/torchaudio pipeline tests. A subsequent documentation-only commit produced branch-head run [#44469877959](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44469877959), in which both `adapter-tests` and `full-pipeline-smoke` completed successfully. This confirms the latest branch head is green; the code tested is unchanged from the source commit above.
 
 This is automated regression evidence for the tested inputs, not proof that all possible defects are eliminated. The project remains experimental; trained-checkpoint quality, real-guitar recordings, polyphonic transcription, and real-time behavior still require independent validation.
+
+
+## Additional defect pass (2026-11-19)
+
+A further review after the previous green run found and corrected these edge cases:
+
+- **MIDI note 0 was conflated with the no-pitch sentinel.** The transcription state machine now uses `None` for unvoiced input, so MIDI note 0 (C-1) remains representable. The `hz_to_midi` helper likewise returns `None` for invalid/non-positive frequencies rather than incorrectly returning valid MIDI note 0.
+- **Transcription confidence was hard-coded to 1.0.** Completed note events now report the mean measured pitch confidence across the note's frames.
+- **Talk-box renderers assumed reusable sequences.** Both public render paths now normalize note iterables once, accept generators safely, and handle empty input. The MIDI bridge also returns an empty buffer for a zero-duration/zero-tail render instead of taking a maximum over an empty array.
+- **Physical synthesis could throw for a valid MIDI note above a low sample rate's Nyquist limit.** The renderer now treats that control as invalid/silent state instead of raising during block synthesis; direct pluck calls still reject above-Nyquist fundamentals.
+
+### Follow-up verification
+
+GitHub Actions run [#44579206842](https://github.com/ljrseals-dev/Aura-G-Adapter/actions/runs/44579206842) passed on commit `90c2cf20780eb746a24329b0adfa267f43cbca6d`:
+- **53 adapter regression tests passed.**
+- **9 CPU PyTorch/torchaudio full-pipeline tests passed.**
+- Both jobs completed successfully.
