@@ -183,7 +183,7 @@ class T(unittest.TestCase):
             (240, bytes([0x90, 60, 80])),
             (240, bytes([0x80, 60, 0])),
             (480, bytes([0x80, 60, 0])),
-            (0, b"\\xff\\x2f\\x00"),
+            (0, bytes([0xFF, 0x2F, 0x00])),
         ]
         header = b"MThd" + struct.pack(">IHHH", 6, 0, 1, 480)
         recovered = G._read_midi_impl(header + track(events))
