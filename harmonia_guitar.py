@@ -79,8 +79,6 @@ def _build_midi_bytes(notes, bpm=120, tpq=480):
     tpq = int(tpq)
     events = []
     for note in notes:
-        if not np.isfinite(note.start) or not np.isfinite(note.dur) or note.start < 0 or note.dur <= 0:
-            raise ValueError("note start must be non-negative and duration must be positive")
         if not isinstance(note.midi, (int, np.integer)) or not 0 <= note.midi <= 127:
             raise ValueError("note MIDI pitch must be in [0, 127]")
         if not isinstance(note.vel, (int, np.integer)) or not 0 <= note.vel <= 127:
