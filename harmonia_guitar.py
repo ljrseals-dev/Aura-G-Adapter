@@ -83,8 +83,15 @@ def _build_midi_bytes(notes, bpm=120, tpq=480):
             raise ValueError("note MIDI pitch must be in [0, 127]")
         if not isinstance(note.vel, (int, np.integer)) or not 0 <= note.vel <= 127:
             raise ValueError("note velocity must be in [0, 127]")
-        start_tick = int(round(note.start * tpq * bpm / 60))
-        end_tick = max(start_tick + 1, int(round((note.start + note.dur) * tpq * bpm / 60)))
+        try:
+            start_seconds, duration_seconds = float(note.start), float(note.dur)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("note start and duration must be finite numbers") from None
+        if (not np.isfinite(start_seconds) or not np.isfinite(duration_seconds) or
+                start_seconds < 0 or duration_seconds <= 0):
+            raise ValueError("note start must be non-negative and duration must be positive")
+        start_tick = int(round(start_seconds * tpq * bpm_value / 60.0))
+        end_tick = max(start_tick + 1, int(round((start_seconds + duration_seconds) * tpq * bpm_value / 60.0)))
         events.extend([(start_tick, 1, bytes([0x90, note.midi, note.vel])),
                        (end_tick, 0, bytes([0x80, note.midi, 0]))])
     events.sort(key=lambda event: (event[0], event[1]))
@@ -137,10 +144,11 @@ def _read_midi_impl(data):
             status = data[offset]
             if status == 0xFF:
                 offset += 1
-                if offset + 2 > end:
+                if offset >= end:
                     raise ValueError("truncated MIDI meta event")
-                kind, size = data[offset], data[offset + 1]
-                offset += 2
+                kind = data[offset]
+                offset += 1
+                size, offset = _read_vlq(data, offset, end)
                 if offset + size > end:
                     raise ValueError("MIDI meta event exceeds track")
                 payload = data[offset:offset + size]
