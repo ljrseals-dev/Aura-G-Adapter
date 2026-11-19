@@ -1,5 +1,4 @@
 """Karplus-Strong guitar synthesis and defensive Standard MIDI File Type-0 I/O."""
-import math
 import struct
 from dataclasses import dataclass
 import numpy as np
@@ -21,76 +20,76 @@ def pluck(midi: int, dur: float, vel: float, fs: int, seed=None) -> np.ndarray:
         raise ValueError("dur must be non-negative and vel must be in [0, 1]")
     if not isinstance(fs, (int, np.integer)) or fs <= 0:
         raise ValueError("fs must be a positive integer")
-    freq = 440.0 * (2.0 ** ((midi - 69) / 12.0))
-    n_samples = int(fs * dur)
-    period = max(2, int(round(fs / freq)))
-    rng = np.random.default_rng(seed)
-    noise = rng.uniform(-1.0, 1.0, period)
-    out = np.zeros(n_samples, dtype=np.float64)
-    initial = min(period, n_samples)
-    out[:initial] = noise[:initial] * (vel ** 1.5)
-    for i in range(period, n_samples):
-        out[i] = 0.5 * (out[i - period] + out[i - period - 1]) * 0.996
-    return out
+    frequency = 440.0 * (2.0 ** ((midi - 69) / 12.0))
+    count = int(fs * dur)
+    period = max(2, int(round(fs / frequency)))
+    noise = np.random.default_rng(seed).uniform(-1.0, 1.0, period)
+    output = np.zeros(count, dtype=np.float64)
+    initial = min(period, count)
+    output[:initial] = noise[:initial] * (vel ** 1.5)
+    for i in range(period, count):
+        output[i] = 0.5 * (output[i - period] + output[i - period - 1]) * 0.996
+    return output
 
 
-def _vlq(v):
+def _vlq(value):
     """Encode a MIDI Variable Length Quantity (maximum 0x0FFFFFFF)."""
-    if not isinstance(v, (int, np.integer)) or not 0 <= v <= 0x0FFFFFFF:
+    if not isinstance(value, (int, np.integer)) or not 0 <= value <= 0x0FFFFFFF:
         raise ValueError("MIDI delta time must be an integer in [0, 0x0FFFFFFF]")
-    out = [v & 0x7F]
-    v >>= 7
-    while v:
-        out.append((v & 0x7F) | 0x80)
-        v >>= 7
-    return bytes(reversed(out))
+    result = [value & 0x7F]
+    value >>= 7
+    while value:
+        result.append((value & 0x7F) | 0x80)
+        value >>= 7
+    return bytes(reversed(result))
 
 
-def _read_vlq(data, q, end=None):
+def _read_vlq(data, offset, end=None):
     """Read a bounded MIDI VLQ and reject truncation/overlong values."""
     limit = len(data) if end is None else min(len(data), end)
     value = 0
     for _ in range(4):
-        if q >= limit:
+        if offset >= limit:
             raise ValueError("truncated MIDI variable-length quantity")
-        byte = data[q]
-        q += 1
+        byte = data[offset]
+        offset += 1
         value = (value << 7) | (byte & 0x7F)
         if not byte & 0x80:
-            return value, q
+            return value, offset
     raise ValueError("MIDI variable-length quantity exceeds four bytes")
 
 
 def _build_midi_bytes(notes, bpm=120, tpq=480):
-    if not np.isfinite(bpm) or bpm <= 0 or not isinstance(tpq, int) or not 1 <= tpq <= 0x7FFF:
-        raise ValueError("bpm must be positive and tpq must be in [1, 32767]")
+    if not np.isfinite(bpm) or bpm <= 0 or int(60e6 / bpm) < 1:
+        raise ValueError("bpm must produce a positive MIDI tempo")
+    if not isinstance(tpq, int) or not 1 <= tpq <= 0x7FFF:
+        raise ValueError("tpq must be in [1, 32767]")
     events = []
     for note in notes:
-        if not np.isfinite(note.start) or not np.isfinite(note.dur) or note.start < 0 or note.dur < 0:
-            raise ValueError("note start and duration must be finite and non-negative")
+        if not np.isfinite(note.start) or not np.isfinite(note.dur) or note.start < 0 or note.dur <= 0:
+            raise ValueError("note start must be non-negative and duration must be positive")
         if not isinstance(note.midi, (int, np.integer)) or not 0 <= note.midi <= 127:
             raise ValueError("note MIDI pitch must be in [0, 127]")
         if not isinstance(note.vel, (int, np.integer)) or not 0 <= note.vel <= 127:
             raise ValueError("note velocity must be in [0, 127]")
-        t0 = int(round(note.start * tpq * bpm / 60))
-        t1 = int(round((note.start + note.dur) * tpq * bpm / 60))
-        events.extend([(t0, 1, bytes([0x90, note.midi, note.vel])),
-                       (t1, 0, bytes([0x80, note.midi, 0]))])
+        start_tick = int(round(note.start * tpq * bpm / 60))
+        end_tick = max(start_tick + 1, int(round((note.start + note.dur) * tpq * bpm / 60)))
+        events.extend([(start_tick, 1, bytes([0x90, note.midi, note.vel])),
+                       (end_tick, 0, bytes([0x80, note.midi, 0]))])
     events.sort(key=lambda event: (event[0], event[1]))
     track = bytearray(_vlq(0) + bytes([0xFF, 0x51, 3]) + struct.pack(">I", int(60e6 / bpm))[1:])
-    last_tick = 0
+    previous_tick = 0
     for tick, _, message in events:
-        track.extend(_vlq(tick - last_tick))
+        track.extend(_vlq(tick - previous_tick))
         track.extend(message)
-        last_tick = tick
+        previous_tick = tick
     track.extend(_vlq(0) + bytes([0xFF, 0x2F, 0]))
     return b"MThd" + struct.pack(">IHHH", 6, 0, 1, tpq) + b"MTrk" + struct.pack(">I", len(track)) + track
 
 
 def write_midi(path, notes, bpm=120, tpq=480):
-    data = _build_midi_bytes(notes, bpm=bpm, tpq=tpq)
     with open(path, "wb") as stream:
-        stream.write(data)
+        stream.write(_build_midi_bytes(notes, bpm=bpm, tpq=tpq))
 
 
 def _read_midi_impl(data):
@@ -98,66 +97,63 @@ def _read_midi_impl(data):
     data = bytes(data)
     if len(data) < 14 or data[:4] != b"MThd":
         raise ValueError("invalid or truncated MIDI header")
-    header_len, fmt, n_tracks, division = struct.unpack(">IHHH", data[4:14])
-    if header_len < 6 or len(data) < 8 + header_len:
+    header_length, file_format, track_count, division = struct.unpack(">IHHH", data[4:14])
+    if header_length < 6 or len(data) < 8 + header_length:
         raise ValueError("invalid MIDI header length")
-    if fmt not in (0, 1) or n_tracks < 1 or (fmt == 0 and n_tracks != 1):
+    if file_format not in (0, 1) or track_count < 1 or (file_format == 0 and track_count != 1):
         raise ValueError("unsupported MIDI format or track count")
     if division == 0 or division & 0x8000:
         raise ValueError("SMPTE or zero MIDI time division is unsupported")
-    pos = 8 + header_len
-    tempo = 500000
+    position, tempo = 8 + header_length, 500000
     notes, open_notes = [], {}
-    for _ in range(n_tracks):
-        if pos + 8 > len(data) or data[pos:pos + 4] != b"MTrk":
+    for _ in range(track_count):
+        if position + 8 > len(data) or data[position:position + 4] != b"MTrk":
             raise ValueError("missing or truncated MIDI track")
-        length = struct.unpack(">I", data[pos + 4:pos + 8])[0]
-        q, end = pos + 8, pos + 8 + length
+        length = struct.unpack(">I", data[position + 4:position + 8])[0]
+        offset, end = position + 8, position + 8 + length
         if end > len(data):
             raise ValueError("MIDI track extends beyond file")
         tick, running_status = 0, None
-        while q < end:
-            delta, q = _read_vlq(data, q, end)
+        while offset < end:
+            delta, offset = _read_vlq(data, offset, end)
             tick += delta
-            if q >= end:
+            if offset >= end:
                 raise ValueError("truncated MIDI event")
-            status = data[q]
+            status = data[offset]
             if status == 0xFF:
-                q += 1
-                if q + 2 > end:
+                offset += 1
+                if offset + 2 > end:
                     raise ValueError("truncated MIDI meta event")
-                kind, size = data[q], data[q + 1]
-                q += 2
-                if q + size > end:
+                kind, size = data[offset], data[offset + 1]
+                offset += 2
+                if offset + size > end:
                     raise ValueError("MIDI meta event exceeds track")
                 if kind == 0x51 and size == 3:
-                    tempo = int.from_bytes(data[q:q + 3], "big")
+                    tempo = int.from_bytes(data[offset:offset + 3], "big")
                     if tempo == 0:
                         raise ValueError("MIDI tempo cannot be zero")
-                q += size
+                offset += size
                 continue
             if status in (0xF0, 0xF7):
-                q += 1
-                if q >= end:
-                    raise ValueError("truncated MIDI SysEx event")
-                size, q = _read_vlq(data, q, end)
-                if q + size > end:
+                offset += 1
+                size, offset = _read_vlq(data, offset, end)
+                if offset + size > end:
                     raise ValueError("MIDI SysEx event exceeds track")
-                q += size
+                offset += size
                 running_status = None
                 continue
             if status & 0x80:
                 running_status = status
-                q += 1
+                offset += 1
             elif running_status is None:
                 raise ValueError("MIDI running status used before channel status")
             status = running_status
-            count = 1 if (status & 0xF0) in (0xC0, 0xD0) else 2
-            if q + count > end:
+            data_bytes = 1 if (status & 0xF0) in (0xC0, 0xD0) else 2
+            if offset + data_bytes > end:
                 raise ValueError("truncated MIDI channel event")
-            first = data[q]
-            second = data[q + 1] if count == 2 else 0
-            q += count
+            first = data[offset]
+            second = data[offset + 1] if data_bytes == 2 else 0
+            offset += data_bytes
             if first > 127 or second > 127:
                 raise ValueError("invalid MIDI data byte")
             channel, command = status & 0x0F, status & 0xF0
@@ -169,7 +165,7 @@ def _read_midi_impl(data):
                 if key in open_notes:
                     start, velocity = open_notes.pop(key)
                     notes.append(Note(start, max(0.0, seconds - start), first, velocity))
-        pos = end
+        position = end
     return sorted(notes, key=lambda note: (note.start, note.midi))
 
 
@@ -181,9 +177,9 @@ def read_midi(path):
 if __name__ == "__main__":
     import os
     import tempfile
-    test_notes = [Note(0.0, 1.0, 60, 100), Note(0.5, 0.8, 64, 90), Note(1.0, 1.5, 67, 80)]
-    path = os.path.join(tempfile.gettempdir(), "test_guitar.mid")
-    write_midi(path, test_notes)
-    got = read_midi(path)
-    assert len(got) == len(test_notes)
-    print("MIDI round-trip OK:", os.path.getsize(path), "bytes")
+    sample_notes = [Note(0.0, 1.0, 60, 100), Note(0.5, 0.8, 64, 90), Note(1.0, 1.5, 67, 80)]
+    midi_path = os.path.join(tempfile.gettempdir(), "test_guitar.mid")
+    write_midi(midi_path, sample_notes)
+    recovered = read_midi(midi_path)
+    assert len(recovered) == len(sample_notes)
+    print("MIDI round-trip OK:", os.path.getsize(midi_path), "bytes")
