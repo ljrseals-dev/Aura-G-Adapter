@@ -60,9 +60,16 @@ def _read_vlq(data, offset, end=None):
 
 
 def _build_midi_bytes(notes, bpm=120, tpq=480):
-    if not np.isscalar(bpm) or not np.isfinite(bpm) or bpm <= 0:
-        raise ValueError("bpm must be finite and positive")
-    tempo_us = int(round(60e6 / float(bpm)))
+    try:
+        bpm_value = float(bpm)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("bpm must be a finite positive number") from None
+    if not np.isfinite(bpm_value) or bpm_value <= 0:
+        raise ValueError("bpm must be a finite positive number")
+    tempo_value = 60e6 / bpm_value
+    if not np.isfinite(tempo_value) or not 0.5 <= tempo_value < 0xFFFFFF + 0.5:
+        raise ValueError("bpm is outside the Standard MIDI 24-bit tempo range")
+    tempo_us = int(round(tempo_value))
     if not 1 <= tempo_us <= 0xFFFFFF:
         raise ValueError("bpm is outside the Standard MIDI 24-bit tempo range")
     if not isinstance(tpq, (int, np.integer)) or not 1 <= tpq <= 0x7FFF:
