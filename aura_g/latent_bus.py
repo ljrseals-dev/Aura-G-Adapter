@@ -19,7 +19,10 @@ class LatentBus:
             raise ValueError("sample_rate and hop must be positive integers")
         if vector is None:
             vector = np.zeros(BUS_DIM, dtype=np.float32)
-        values = np.asarray(vector, dtype=np.float32)
+        raw = np.asarray(vector)
+        if np.iscomplexobj(raw):
+            raise ValueError("latent vector must be real-valued")
+        values = np.asarray(raw, dtype=np.float32)
         if values.shape != (BUS_DIM,) or not np.all(np.isfinite(values)):
             raise ValueError("latent vector must be finite and have exactly 32 elements")
         self.sample_rate, self.hop = int(sample_rate), int(hop)
