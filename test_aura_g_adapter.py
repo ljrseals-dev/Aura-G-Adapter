@@ -244,6 +244,10 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             B.transcribe(np.zeros(1024), 0)
 
+    def test_yin_silence_is_not_misclassified_as_a_pitch(self):
+        self.assertEqual(A.fixed_yin(np.zeros(4096), SR), (0.0, 0.0))
+        self.assertEqual(B._yin(np.zeros(2208), SR), (0.0, 1.0))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
