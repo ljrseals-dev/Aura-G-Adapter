@@ -43,7 +43,8 @@ class AURAG:
 
         if use_phys:
             pg = bus_history[0].get_pitch_gesture()
-            f0 = 440.0 * (2 ** (float(pg[0]) * 6.0)) if pg[0] != 0 else 196.0
+            # Zero log-pitch is A4; use neutral tuning only while dynamics is gated.
+            f0 = 440.0 * (2 ** (float(pg[0]) * 6.0)) if pg[6] >= self.transcriber.gate else 196.0
             self.phys.string.f0 = f0 if f0 > 0 else 196.0
             self.phys.string.delay = max(2, int(round(self.sr / self.phys.string.f0)))
             self.phys.string.buffer = np.random.default_rng(0).standard_normal(
