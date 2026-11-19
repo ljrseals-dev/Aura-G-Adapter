@@ -173,6 +173,31 @@ class T(unittest.TestCase):
         self.assertLess(string.delay, open_delay)
         self.assertEqual(string.fret_damping(100), 0.0)
 
+    def test_overlapping_same_pitch_notes_on_one_track_are_not_lost(self):
+        def track(events):
+            body = b"".join(G._vlq(delta) + event for delta, event in events)
+            return b"MTrk" + struct.pack(">I", len(body)) + body
+
+        events = [
+            (0, bytes([0x90, 60, 90])),
+            (240, bytes([0x90, 60, 80])),
+            (240, bytes([0x80, 60, 0])),
+            (480, bytes([0x80, 60, 0])),
+            (0, b"\\xff\\x2f\\x00"),
+        ]
+        header = b"MThd" + struct.pack(">IHHH", 6, 0, 1, 480)
+        recovered = G._read_midi_impl(header + track(events))
+        self.assertEqual(len(recovered), 2)
+        self.assertAlmostEqual(recovered[0].start, 0.0)
+        self.assertAlmostEqual(recovered[0].dur, 0.5)
+        self.assertAlmostEqual(recovered[1].start, 0.25)
+        self.assertAlmostEqual(recovered[1].dur, 0.75)
+        self.assertEqual([note.vel for note in recovered], [90, 80])
+
+    def test_midi_writer_rejects_tempo_outside_24_bit_range(self):
+        with self.assertRaises(ValueError):
+            G._build_midi_bytes([], bpm=1.0)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
