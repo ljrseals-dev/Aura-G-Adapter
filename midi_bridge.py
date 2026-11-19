@@ -69,7 +69,7 @@ def transcribe(audio, sr, hop=0.01, win=0.046, min_note=0.06, gate_db=-45.0):
         raise ValueError("hop and window must be positive; min_note must be non-negative")
     if _TRANSCRIBER is not None:
         x = np.asarray(audio)
-        if x.ndim != 1 or not np.all(np.isfinite(x)):
+        if np.iscomplexobj(x) or x.ndim != 1 or not np.all(np.isfinite(x)):
             raise ValueError("audio must be finite mono input")
         return [n if isinstance(n, Note) else Note(*n) for n in _TRANSCRIBER(x, sr)]
 
