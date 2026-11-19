@@ -56,12 +56,15 @@ class TranscriptionEngine:
         events = []
         for bus in bus_history:
             pg = bus.get_pitch_gesture()
-            # Zero log-pitch is the valid A4 (440 Hz) encoding; dynamics gates silence.
-            f0 = 440.0 * (2 ** (float(pg[0]) * 6.0))
+            # Zero log-pitch is A4; measured confidence distinguishes unvoiced frames.
+            midi_value = 69.0 + 72.0 * float(pg[0])
             onset = pg[1] > 0.5
             dynamics = float(pg[6])
+            confidence = bus.get_pitch_confidence()
             t = self.frame_index * self.hop / self.sr
-            midi = hz_to_midi(f0) if f0 > 0 and dynamics >= self.gate else 0
+            midi = (int(round(midi_value))
+                    if confidence >= 0.5 and dynamics >= self.gate and
+                    np.isfinite(midi_value) and 0 <= midi_value <= 127 else 0)
             if self.active_note is not None and (midi == 0 or midi != self.active_note["midi"] or onset):
                 closed = self._close_active(t)
                 if closed is not None:
