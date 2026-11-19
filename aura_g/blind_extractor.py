@@ -43,7 +43,12 @@ class BlindExtractor:
     def apply(self, x):
         if self.H is None:
             raise RuntimeError("Call fit() first.")
-        x = np.asarray(x, dtype=np.float64)
+        raw = np.asarray(x)
+        if np.iscomplexobj(raw):
+            raise ValueError("audio must be real-valued")
+        x = np.asarray(raw, dtype=np.float64)
+        if x.ndim != 1 or not np.all(np.isfinite(x)):
+            raise ValueError("audio must be a finite mono array")
         if len(x) == 0:
             return np.zeros(0, dtype=np.float64)
         if len(x) < self.n_fft:
