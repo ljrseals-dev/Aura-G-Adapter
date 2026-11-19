@@ -5,6 +5,7 @@ import torch
 
 from aura_g.pipeline import AURAG
 from aura_g.rnn_fx import InterpolationFilter, SampleRateIndependentFX
+from aura_g.ddsp_amp import Biquad, DDSPAmp
 
 
 class PipelineSmokeTests(unittest.TestCase):
@@ -63,6 +64,31 @@ class PipelineSmokeTests(unittest.TestCase):
             AURAG(sr=48000.5)
         with self.assertRaises(ValueError):
             AURAG(hop=480.5)
+
+    def test_output_transformer_uses_real_highpass_and_lowpass_filters(self):
+        highpass = Biquad(sr=48000, f0=200, Q=0.707, filter_type="highpass")
+        lowpass = Biquad(sr=48000, f0=2000, Q=0.707, filter_type="lowpass")
+        dc = torch.ones(1, 4096)
+        hp_dc = highpass(dc)
+        self.assertLess(float(hp_dc.abs().max()), 1e-5)
+        time = torch.arange(4096, dtype=torch.float32) / 48000
+        high_tone = torch.sin(2 * torch.pi * 10000 * time).unsqueeze(0)
+        lp_high = lowpass(high_tone)
+        self.assertLess(float(lp_high.square().mean().sqrt()), 0.1)
+
+    def test_ddsp_validates_latent_and_keeps_parameters_differentiable(self):
+        amp = DDSPAmp(sr=48000)
+        audio = torch.randn(1, 2048, requires_grad=True)
+        latent = torch.zeros(1, 32)
+        output = amp(audio, latent)
+        self.assertEqual(output.shape, audio.shape)
+        self.assertTrue(torch.isfinite(output).all())
+        output.square().mean().backward()
+        self.assertIsNotNone(amp.preamp.drive.grad)
+        with self.assertRaises(ValueError):
+            amp(audio.detach(), torch.zeros(1, 31))
+        with self.assertRaises(ValueError):
+            Biquad(filter_type="not-a-filter")
 
 
 if __name__ == "__main__":
