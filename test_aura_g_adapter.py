@@ -211,6 +211,25 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             bus.write_expression(np.array([np.nan] * 8))
 
+    def test_waveguide_rejects_above_nyquist_fundamentals(self):
+        from aura_g.physical_model import DigitalWaveguideString, BodyResonance
+        with self.assertRaises(ValueError):
+            DigitalWaveguideString(sr=SR, f0=SR)
+        string = DigitalWaveguideString(sr=SR, f0=1000)
+        with self.assertRaises(ValueError):
+            string.pluck(fret=60)
+        with self.assertRaises(ValueError):
+            BodyResonance(sr=SR, modes=[[440.0, 1.0, float("nan")]])
+
+    def test_tuned_string_rejects_non_finite_controls(self):
+        string = A.TunedWaveguideString(SR)
+        with self.assertRaises(ValueError):
+            string.render(440.0, 0.1, dynamics=float("nan"))
+        with self.assertRaises(ValueError):
+            string.render(440.0, 0.1, pick_lowpass=float("nan"))
+        with self.assertRaises(ValueError):
+            A.aura_g_transcribe(np.zeros(1024), SR, hop=0.5)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
