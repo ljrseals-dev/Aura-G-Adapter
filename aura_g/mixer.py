@@ -9,6 +9,10 @@ class RoutingMatrix:
     def blend(self, amp_out, fx_out, phys_out, length):
         if not isinstance(length, (int, np.integer)) or length < 0:
             raise ValueError("length must be a non-negative integer")
+        weights = np.asarray(self.weights, dtype=np.float64)
+        if (weights.shape != (3,) or not np.all(np.isfinite(weights)) or
+                np.any(weights < 0) or not np.isclose(weights.sum(), 1.0, atol=1e-8)):
+            raise ValueError("mixer weights must be three finite non-negative values summing to one")
         def _fit(x):
             x = np.asarray(x)
             if np.iscomplexobj(x):
@@ -20,9 +24,9 @@ class RoutingMatrix:
             if len(x) >= length:
                 return x[:length]
             return np.pad(x, (0, length - len(x)))
-        return (self.weights[0] * _fit(amp_out) +
-                self.weights[1] * _fit(fx_out) +
-                self.weights[2] * _fit(phys_out))
+        return (weights[0] * _fit(amp_out) +
+                weights[1] * _fit(fx_out) +
+                weights[2] * _fit(phys_out))
 
     def morph(self, latent_vector):
         raw = np.asarray(latent_vector)
