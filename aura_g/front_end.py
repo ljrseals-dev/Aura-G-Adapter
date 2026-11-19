@@ -77,7 +77,7 @@ class FrontEndAnalyzer:
         if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
                 not isinstance(hop, (int, np.integer)) or hop <= 0 or
                 not isinstance(win, (int, np.integer)) or win < 4 or
-                not np.all(np.isfinite([fmin, fmax])) or fmin <= 0 or fmax <= fmin):
+                not np.all(np.isfinite([fmin, fmax])) or fmin <= 0 or fmax <= fmin or fmax >= sr / 2):
             raise ValueError("invalid sample rate, hop, window, or pitch bounds")
         self.sr, self.hop, self.win = int(sr), int(hop), int(win)
         self.fmin, self.fmax = float(fmin), float(fmax)
