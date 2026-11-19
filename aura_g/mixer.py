@@ -11,6 +11,8 @@ class RoutingMatrix:
             raise ValueError("length must be a non-negative integer")
         def _fit(x):
             x = np.asarray(x)
+            if np.iscomplexobj(x):
+                raise ValueError("mixer inputs must be real-valued")
             if x.ndim != 1:
                 raise ValueError("mixer inputs must be mono arrays")
             if not np.all(np.isfinite(x)):
