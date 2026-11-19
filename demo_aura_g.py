@@ -13,4 +13,5 @@ else:
 notes = A.aura_g_transcribe(x, sr); B.write_midi("transcribed.mid", notes)
 print(f"AURA-G transcribed {len(notes)} notes:", [(round(n.start, 2), n.midi, round(n.dur, 2)) for n in notes])
 y = A.render_talkbox_aura(notes); wavfile.write("aura_g_talkbox_demo.wav", SR, (y * 32767).astype(np.int16))
-print(f"wrote transcribed.mid and aura_g_talkbox_demo.wav ({len(y)/SR:.1f} s, peak {20*np.log10(np.max(np.abs(y))):.1f} dBFS)")
+peak = float(np.max(np.abs(y))) if y.size else 0.0
+print(f"wrote transcribed.mid and aura_g_talkbox_demo.wav ({len(y)/SR:.1f} s, peak {20*np.log10(max(peak, 1e-12)):.1f} dBFS)")
