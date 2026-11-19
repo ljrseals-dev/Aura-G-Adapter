@@ -11,6 +11,8 @@ def fixed_yin(frame, sr, fmin=70.0, fmax=1200.0, threshold=0.15):
     x = np.asarray(frame, dtype=np.float64)
     if x.ndim != 1 or len(x) < 4 or not np.all(np.isfinite(x)):
         return 0.0, 0.0
+    if np.max(np.abs(x)) <= 1e-12:
+        return 0.0, 0.0
     if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
             not np.isfinite(fmin) or not np.isfinite(fmax) or
             not 0 < fmin < fmax or not np.isfinite(threshold) or
