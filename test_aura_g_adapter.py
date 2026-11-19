@@ -198,6 +198,19 @@ class T(unittest.TestCase):
         with self.assertRaises(ValueError):
             G._build_midi_bytes([], bpm=1.0)
 
+    def test_latent_bus_rejects_invalid_vectors_and_protects_state(self):
+        with self.assertRaises(ValueError):
+            LatentBus(vector=np.zeros(31))
+        with self.assertRaises(ValueError):
+            LatentBus(vector=np.full(32, np.nan))
+        bus = LatentBus()
+        bus.write_expression(np.arange(8, dtype=np.float32))
+        exposed = bus.get_expression()
+        exposed[0] = 999.0
+        self.assertEqual(bus.get_expression()[0], 0.0)
+        with self.assertRaises(ValueError):
+            bus.write_expression(np.array([np.nan] * 8))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
