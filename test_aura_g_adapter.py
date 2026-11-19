@@ -523,6 +523,9 @@ class T(unittest.TestCase):
         engine.process([bus])
         event = engine.flush()[0]
         self.assertEqual(event["midi"], 0)
+        from aura_g.transcription import hz_to_midi
+        self.assertEqual(hz_to_midi(440.0 * 2 ** (-69 / 12)), 0)
+        self.assertIsNone(hz_to_midi(0.0))
         self.assertAlmostEqual(event["confidence"], 0.73, places=6)
         self.assertNotIn("_confidence_sum", event)
 
