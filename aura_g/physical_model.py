@@ -155,6 +155,8 @@ class PhysicalGuitarModel:
                         self.string.pluck(fret=0, pluck_pos=pluck_pos,
                                           dynamics=float(np.clip(dynamics, 0.0, 1.0)))
                         self._active_midi = midi
+                else:
+                    self._active_midi = None
             else:
                 self._active_midi = None
             count = min(int(bus.hop), n_samples - offset)
