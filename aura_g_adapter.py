@@ -11,8 +11,11 @@ def fixed_yin(frame, sr, fmin=70.0, fmax=1200.0, threshold=0.15):
     x = np.asarray(frame, dtype=np.float64)
     if x.ndim != 1 or len(x) < 4 or not np.all(np.isfinite(x)):
         return 0.0, 0.0
-    if sr <= 0 or fmin <= 0 or fmax <= fmin:
-        raise ValueError("invalid YIN sample rate or frequency bounds")
+    if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
+            not np.isfinite(fmin) or not np.isfinite(fmax) or
+            not 0 < fmin < fmax or not np.isfinite(threshold) or
+            not 0 < threshold < 1):
+        raise ValueError("invalid YIN sample rate, frequency bounds, or threshold")
     x = x - np.mean(x)
     n = len(x)
     tau_min = max(2, int(sr / fmax))
@@ -50,8 +53,10 @@ def aura_g_transcribe(audio, sr, hop=480, min_gap=0.10, min_dur=0.06, gate=0.02)
         raise ValueError("audio contains NaN or infinite samples")
     if not isinstance(sr, (int, np.integer)) or sr <= 0:
         raise ValueError("sample rate must be a positive integer")
-    if hop <= 0 or min_gap < 0 or min_dur < 0 or gate < 0:
-        raise ValueError("hop, min_gap, min_dur, and gate must be non-negative (hop positive)")
+    if (not isinstance(hop, (int, np.integer)) or hop <= 0 or
+            not np.all(np.isfinite([min_gap, min_dur, gate])) or
+            min_gap < 0 or min_dur < 0 or gate < 0):
+        raise ValueError("hop must be a positive integer; min_gap, min_dur, and gate must be finite and non-negative")
     if len(x) == 0:
         return []
     if sr != 48000:
@@ -99,8 +104,10 @@ class TunedWaveguideString:
             raise ValueError("f0 must be positive and duration non-negative")
         if not isinstance(fret, (int, np.integer)) or fret < 0:
             raise ValueError("fret must be a non-negative integer")
-        if not 0 < pluck_pos < 1 or not 0 <= dynamics <= 1 or not 0 <= pick_lowpass <= 1:
-            raise ValueError("pluck_pos, dynamics, or pick_lowpass out of range")
+        if (not np.all(np.isfinite([pluck_pos, dynamics, pick_lowpass])) or
+                not 0 < pluck_pos < 1 or not 0 <= dynamics <= 1 or
+                not 0 <= pick_lowpass <= 1):
+            raise ValueError("pluck_pos, dynamics, and pick_lowpass must be finite and in range")
         sr = self.sr
         frequency = f0 * 2 ** (fret / 12.0)
         n = int(sr * dur)
@@ -141,19 +148,22 @@ def render_talkbox_aura(notes, fs=48000, tail=0.8, glide=0.04, seed=0):
     import mouth_tract as M
     if not notes:
         return np.zeros(0, dtype=np.float64)
-    if fs <= 0 or tail < 0 or glide <= 0:
-        raise ValueError("fs and glide must be positive and tail non-negative")
+    if (not isinstance(fs, (int, np.integer)) or fs <= 0 or
+            not np.all(np.isfinite([tail, glide])) or tail < 0 or glide <= 0):
+        raise ValueError("fs must be a positive integer; tail and glide must be finite with tail >= 0 and glide > 0")
+    for note in notes:
+        if (not np.all(np.isfinite([note.start, note.dur])) or
+                note.start < 0 or note.dur < 0 or
+                not isinstance(note.midi, (int, np.integer)) or not 0 <= note.midi <= 127 or
+                not isinstance(note.vel, (int, np.integer)) or not 0 <= note.vel <= 127):
+            raise ValueError("notes must have finite non-negative timing and valid MIDI pitch/velocity")
     end = max(note.start + note.dur for note in notes)
-    if not np.isfinite(end) or end < 0:
-        raise ValueError("notes contain invalid timing")
     n = int(fs * (end + tail))
     if n == 0:
         return np.zeros(0, dtype=np.float64)
     source, curve = np.zeros(n), np.zeros(n)
     string = TunedWaveguideString(fs, seed)
     for note in sorted(notes, key=lambda item: item.start):
-        if note.start < 0 or note.dur < 0 or not 0 <= note.midi <= 127:
-            raise ValueError("invalid note timing or MIDI pitch")
         start = int(note.start * fs)
         if start >= n:
             continue
