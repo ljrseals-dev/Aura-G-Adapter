@@ -173,6 +173,8 @@ def render_talkbox(notes, fs=48000, octave_shift=0, tail=0.8, glide=0.04):
             raise ValueError("invalid note timing, pitch, or velocity")
 
     n = int(fs * (max(x.start + x.dur for x in notes) + tail))
+    if n == 0:
+        return np.zeros(0, dtype=np.float64)
     src = np.zeros(n)
     curve = np.zeros(n)
     
