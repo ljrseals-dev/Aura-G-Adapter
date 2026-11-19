@@ -46,12 +46,10 @@ class AURAG:
             fx_out = self.fx(x, mean_latent).squeeze(0).cpu().numpy() if use_fx else np.zeros_like(audio)
 
         if use_phys:
-            pg = bus_history[0].get_pitch_gesture()
-            # Zero log-pitch is A4; use neutral tuning only while dynamics is gated.
-            f0 = 440.0 * (2 ** (float(pg[0]) * 6.0)) if pg[6] >= self.transcriber.gate else 196.0
-            self.phys.string.f0 = f0 if f0 > 0 else 196.0
-            phys_out = self.phys.synthesize(len(audio), fret=0, pluck_pos=0.3,
-                                            dynamics=float(np.clip(pg[6], 0, 1)))
+            # Follow each latent pitch/onset block while preserving waveguide
+            # and body-filter state across successive process() calls.
+            phys_out = self.phys.synthesize_sequence(
+                bus_history, len(audio), gate=self.transcriber.gate, pluck_pos=0.3)
         else:
             phys_out = np.zeros_like(audio)
 
