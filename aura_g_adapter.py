@@ -13,7 +13,10 @@ def fixed_yin(frame, sr, fmin=70.0, fmax=1200.0, threshold=0.15):
             not 0 < fmin < fmax or not np.isfinite(threshold) or
             not 0 < threshold < 1):
         raise ValueError("invalid YIN sample rate, frequency bounds, or threshold")
-    x = np.asarray(frame, dtype=np.float64)
+    raw = np.asarray(frame)
+    if np.iscomplexobj(raw):
+        raise ValueError("YIN frame must be real-valued")
+    x = np.asarray(raw, dtype=np.float64)
     if x.ndim != 1 or len(x) < 4 or not np.all(np.isfinite(x)):
         return 0.0, 0.0
     if np.max(np.abs(x)) <= 1e-12:
