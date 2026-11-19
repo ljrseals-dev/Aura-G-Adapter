@@ -404,6 +404,36 @@ class T(unittest.TestCase):
         silent = A.render_talkbox_aura([B.Note(0.0, 0.2, 60, 0)], tail=0.0)
         np.testing.assert_array_equal(silent, np.zeros_like(silent))
 
+    def test_physical_model_tracks_latent_pitch_and_does_not_repluck_each_block(self):
+        from aura_g.physical_model import PhysicalGuitarModel, BodyResonance
+        def bus_for(midi, onset, dynamics=0.8):
+            bus = LatentBus(sample_rate=SR, hop=480)
+            log_pitch = (midi - 69) / 72.0
+            bus.write_pitch_gesture(log_pitch, onset, 0.0, 0.5, 0.0, 0.3,
+                                    dynamics, 0.0)
+            return bus
+        model = PhysicalGuitarModel(sr=SR)
+        calls = []
+        original_pluck = model.string.pluck
+        def tracked_pluck(*args, **kwargs):
+            calls.append((args, kwargs))
+            return original_pluck(*args, **kwargs)
+        model.string.pluck = tracked_pluck
+        output = model.synthesize_sequence([bus_for(69, 0.0), bus_for(72, 1.0)], 960)
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(np.all(np.isfinite(output)))
+        model.synthesize_sequence([bus_for(72, 0.0)], 480)
+        self.assertEqual(len(calls), 2)
+        model.synthesize_sequence([bus_for(72, 0.0, dynamics=0.0)], 480)
+        model.synthesize_sequence([bus_for(72, 0.0)], 480)
+        self.assertEqual(len(calls), 3)
+
+        source = np.random.default_rng(9).normal(size=1024)
+        whole = BodyResonance(sr=SR)(source)
+        split_filter = BodyResonance(sr=SR)
+        split = np.concatenate([split_filter(source[:400]), split_filter(source[400:])])
+        np.testing.assert_allclose(split, whole, rtol=1e-12, atol=1e-12)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
