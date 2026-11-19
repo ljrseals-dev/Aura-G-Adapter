@@ -1,0 +1,4 @@
+numpy
+scipy
+# The full aura_g.pipeline path also requires platform-compatible torch and torchaudio.
+# Install matched builds using the official PyTorch installation selector.
