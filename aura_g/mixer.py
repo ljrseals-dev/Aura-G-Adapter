@@ -7,8 +7,8 @@ class RoutingMatrix:
         self.weights = np.array([0.5, 0.3, 0.2], dtype=np.float64)
 
     def blend(self, amp_out, fx_out, phys_out, length):
-        if length < 0:
-            raise ValueError("length must be non-negative")
+        if not isinstance(length, (int, np.integer)) or length < 0:
+            raise ValueError("length must be a non-negative integer")
         def _fit(x):
             x = np.asarray(x)
             if x.ndim != 1:
