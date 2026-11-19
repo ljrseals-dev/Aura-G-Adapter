@@ -25,7 +25,10 @@ class RoutingMatrix:
                 self.weights[2] * _fit(phys_out))
 
     def morph(self, latent_vector):
-        latent_vector = np.asarray(latent_vector, dtype=np.float64)
+        raw = np.asarray(latent_vector)
+        if np.iscomplexobj(raw):
+            raise ValueError("latent vector must be real-valued")
+        latent_vector = np.asarray(raw, dtype=np.float64)
         if latent_vector.shape != (32,) or not np.all(np.isfinite(latent_vector)):
             raise ValueError("latent vector must be a finite 32-dimensional vector")
         expr = latent_vector[16:24]
