@@ -12,6 +12,8 @@ class DigitalWaveguideString:
         self.sr, self.f0 = int(sr), float(f0)
         self.n_strings = int(n_strings)
         self.fret_damping_scale = float(fret_damping_scale)
+        if self.f0 >= self.sr / 2:
+            raise ValueError("string fundamental must be below Nyquist")
         self.delay = max(2, int(round(self.sr / self.f0)))
         self.buffer = np.random.default_rng(0).standard_normal(self.delay) * 0.01
         self._cursor = 0
@@ -28,6 +30,8 @@ class DigitalWaveguideString:
                 not np.isfinite(dynamics) or not 0 <= dynamics <= 1):
             raise ValueError("pluck_pos must be finite in (0, 1) and dynamics finite in [0, 1]")
         frequency = self.f0 * 2 ** (fret / 12.0)
+        if not np.isfinite(frequency) or frequency >= self.sr / 2:
+            raise ValueError("fretted string fundamental must be below Nyquist")
         self.delay = max(2, int(round(self.sr / frequency)))
         idx = int(np.clip(round(pluck_pos * self.delay), 1, self.delay - 1))
         excitation = np.zeros(self.delay, dtype=np.float64)
@@ -63,6 +67,15 @@ class BodyResonance:
             [100, 5, 3], [200, 6, 2], [400, 8, 1],
             [800, 10, 0.5], [1600, 12, -1], [3200, 15, -3]
         ]
+        validated_modes = []
+        for mode in self.modes:
+            if len(mode) != 3:
+                raise ValueError("each body mode must be (frequency, Q, gain_db)")
+            f0, q, gain = map(float, mode)
+            if not np.all(np.isfinite([f0, q, gain])) or f0 <= 0 or q <= 0:
+                raise ValueError("body mode frequency and Q must be finite and positive; gain must be finite")
+            validated_modes.append((f0, q, gain))
+        self.modes = validated_modes
 
     def _biquad_peak(self, x, f0, Q, gain_db):
         if f0 <= 0 or Q <= 0 or f0 >= self.sr / 2:
@@ -91,13 +104,20 @@ class BodyResonance:
 
 class PhysicalGuitarModel:
     def __init__(self, sr=48000, f0=196.0):
-        if sr <= 0 or f0 <= 0:
-            raise ValueError("sr and f0 must be positive")
+        if not isinstance(sr, (int, np.integer)) or sr <= 0 or not np.isfinite(f0) or f0 <= 0:
+            raise ValueError("sr must be a positive integer and f0 must be finite and positive")
         self.sr = int(sr)
-        self.string = DigitalWaveguideString(sr=sr, f0=f0)
-        self.body = BodyResonance(sr=sr)
+        self.string = DigitalWaveguideString(sr=self.sr, f0=f0)
+        self.body = BodyResonance(sr=self.sr)
 
     def synthesize(self, n_samples, fret=0, pluck_pos=0.5, dynamics=1.0):
+        if not isinstance(n_samples, (int, np.integer)) or n_samples < 0:
+            raise ValueError("n_samples must be a non-negative integer")
+        # Validate controls before mutating the waveguide state.
+        if (not isinstance(fret, (int, np.integer)) or fret < 0 or
+                not np.all(np.isfinite([pluck_pos, dynamics])) or
+                not 0 < pluck_pos < 1 or not 0 <= dynamics <= 1):
+            raise ValueError("invalid fret, pluck position, or dynamics")
         self.string.pluck(fret=fret, pluck_pos=pluck_pos, dynamics=dynamics)
         raw = self.string.step(n_samples, fret=fret)
         return self.body(raw)
