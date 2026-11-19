@@ -96,8 +96,8 @@ def register():
 class TunedWaveguideString:
     """Fractional-delay waveguide string tuned to the fretted fundamental."""
     def __init__(self, sr=48000, seed=0):
-        if sr <= 0:
-            raise ValueError("sample rate must be positive")
+        if not isinstance(sr, (int, np.integer)) or sr <= 0:
+            raise ValueError("sample rate must be a positive integer")
         self.sr = int(sr)
         self.rng = np.random.default_rng(seed)
 
