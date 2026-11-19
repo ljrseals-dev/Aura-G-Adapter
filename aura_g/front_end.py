@@ -95,7 +95,10 @@ class FrontEndAnalyzer:
 
     def process(self, audio):
         """Yield LatentBus snapshots at hop rate; short input yields no frames."""
-        audio = np.asarray(audio, dtype=np.float64)
+        raw = np.asarray(audio)
+        if np.iscomplexobj(raw):
+            raise ValueError("audio must be real-valued")
+        audio = np.asarray(raw, dtype=np.float64)
         if audio.ndim != 1:
             raise ValueError("audio must be a mono, one-dimensional array")
         if not np.all(np.isfinite(audio)):
