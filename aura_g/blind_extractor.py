@@ -7,9 +7,9 @@ class BlindExtractor:
     def __init__(self, sr=48000, n_fft=4096, hop=1024, reg=1e-3):
         if (not isinstance(sr, (int, np.integer)) or sr <= 0 or
                 not isinstance(n_fft, (int, np.integer)) or n_fft < 2 or
-                not isinstance(hop, (int, np.integer)) or hop <= 0 or
+                not isinstance(hop, (int, np.integer)) or hop <= 0 or hop > n_fft // 2 or
                 not np.isfinite(reg) or reg <= 0):
-            raise ValueError("sr, n_fft, and hop must be positive integers; regularization must be finite and positive")
+            raise ValueError("sr and n_fft must be positive integers; hop must be in [1, n_fft//2]; regularization must be finite and positive")
         self.sr, self.n_fft, self.hop, self.reg = int(sr), int(n_fft), int(hop), float(reg)
         self.H = None
 
@@ -44,24 +44,26 @@ class BlindExtractor:
         if self.H is None:
             raise RuntimeError("Call fit() first.")
         x = np.asarray(x, dtype=np.float64)
-        X = self._stft(x)
         if len(x) == 0:
             return np.zeros(0, dtype=np.float64)
-        if len(X) == 0:
+        if len(x) < self.n_fft:
             # The learned transfer estimate has no full analysis frame to
             # operate on; bypass instead of replacing a short clip with silence.
             return x.copy()
+        left = self.n_fft // 2
+        padded = np.pad(x, (left, self.n_fft + self.hop))
+        X = self._stft(padded)
         if X.shape[1] != len(self.H):
             raise ValueError("stored transfer function does not match n_fft")
-        out = np.zeros(len(x), dtype=np.float64)
-        norm = np.zeros(len(x), dtype=np.float64)
+        out = np.zeros(len(padded), dtype=np.float64)
+        norm = np.zeros(len(padded), dtype=np.float64)
         win = np.hanning(self.n_fft)
         for i, frame in enumerate(X):
             start = i * self.hop
-            end = min(start + self.n_fft, len(x))
+            end = start + self.n_fft
             frame_out = np.fft.irfft(frame * self.H, n=self.n_fft) * win
-            out[start:end] += frame_out[:end - start]
-            norm[start:end] += win[:end - start] ** 2
+            out[start:end] += frame_out
+            norm[start:end] += win ** 2
         valid = norm > 1e-10
         out[valid] /= norm[valid]
-        return out
+        return out[left:left + len(x)]
