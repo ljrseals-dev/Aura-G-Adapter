@@ -45,3 +45,10 @@ jobs:
         run: g++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -I. AuraGEngine.cpp tests/test_aura_g_engine.cpp -o /tmp/test_aura_g_engine
       - name: Run C++17 engine regression tests
         run: /tmp/test_aura_g_engine
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install probe dependency
+        run: python -m pip install numpy
+      - name: Verify waveguide tuning and decay
+        run: python probe.py
