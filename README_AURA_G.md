@@ -1,14 +1,21 @@
-# AURA-G adapter
+# AURA-G adapter + guitar chain
 
-Hooks AURA-G (numpy parts) into the guitar / talk-box pipeline. Needs numpy + scipy only; `aura_g/` is your code, unmodified.
+numpy/scipy only. `aura_g/` is your code, unmodified.
 
-- `aura_g_transcribe(audio, sr)`: AURA-G's front end -> notes with durations. Fixes: (1) `yin_pitch` takes the lowest cmnd minimum, which gives
-  octave-low pitches on plucks, so the adapter patches in a first-below-threshold YIN; (2) the stock TranscriptionEngine emits one event per
-  onset frame (about 8 per note) and no durations, so notes are rebuilt from the front end's pitch/onset tracks.
-  Test: 10 of 10 notes matched, F1 1.00, durations 0.40 s (true 0.40); the stock engine gave 79 events (F1 0.22).
-- `TunedWaveguideString`: replaces `DigitalWaveguideString`, which was +2.8 to +33.5 cents sharp (integer delay), ignored `fret` for pitch,
-  and damped the loop by 1-0.05*fret (fret 5: -50 dB after 0.1 s; fret 20: silent). Tuned string: 0.01 cents, fret-5 pitch correct, T60 respected.
-- `render_talkbox_aura(notes)`: string -> corrected 17 cm tract. `register()` makes `midi_bridge.transcribe()` use AURA-G.
-- Not covered: DDSP amp, RNN FX, blind extractor, mixer (torch parts), polyphonic chords (YIN is monophonic), and real guitar recordings (tests use synthetic strings).
+## Pieces
+- `aura_g_adapter.py`: `aura_g_transcribe` (AURA-G front end -> notes with durations; patches its octave-low YIN and de-duplicates the per-frame onsets),
+  `TunedWaveguideString` (replaces `DigitalWaveguideString`), `render_talkbox_aura`.
+- `guitar_chain.py`: transcription -> tuned string -> talk-box tract -> LA-2A leveler -> loudness match -> true-peak limiter -> ProDither 16-bit (44.1 kHz).
+- `guitar_gates.py`: 9 release gates (all pass). `test_aura_g_adapter.py`: 5 tests.
+- Dependencies from the AURA-V work: `jowiphon_noise.py`, `prodither_fixed.py`, `la2a_py.py`, `the_order_aura.py` + `the_order_vocal_chain.py` (limiter and dither blocks), `vantage_os.py`.
 
-Run: `python -m unittest -v test_aura_g_adapter` and `python demo_aura_g.py`.
+## Results (synthetic plucked notes, not recordings of a real guitar)
+- Transcription: 10/10 notes, F1 1.00, durations 0.40 s (stock engine: 79 events, F1 0.22).
+- String: 0.01 cents tuning error (stock: +2.8 to +33.5 cents), fret changes pitch, decay follows T60.
+- Chain: -14.06 LUFS, -1.05 dBTP, 100% on the 16-bit grid, 1-5 kHz noise floor 17.6 dB below flat TPDF, NaN/Inf-safe, bit-identical reruns.
+- The talk-box output has 30 dB crest factor (each pluck's attack peaks about 5 ms in). The LA-2A (Peak Reduction 0.30) cuts that to 20 dB and narrows the
+  note-to-note spread from 14.8 to 4.6 dB; the limiter then needs 6.5 dB of gain reduction to reach -14 LUFS (22 dB without the leveler).
+
+## Not covered
+Chords (the transcriber is monophonic), real guitar recordings, AURA-G's DDSP amp / RNN FX / blind extractor / mixer (torch), listening tests, WER.
+`python -m unittest -v test_aura_g_adapter`, `python guitar_gates.py`, `python demo_aura_g.py`.

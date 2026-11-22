@@ -23,6 +23,7 @@ class Tract:
         self.f = np.zeros(N); self.b = np.zeros(N); self.rg, self.rl = rg, rl; self.prev = 0.0
     def process(self, src, vowel_curve, block=32):
         """src: excitation samples; vowel_curve: per-sample vowel position (0..1)."""
+        src = np.nan_to_num(np.asarray(src, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)   # NaN/Inf would poison the recursive tract forever
         out = np.empty(len(src)); f, b = self.f, self.b
         for s0 in range(0, len(src), block):
             A = area_function(vowel_curve[s0]); r = (A[:-1] - A[1:]) / (A[:-1] + A[1:])

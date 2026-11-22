@@ -27,8 +27,9 @@ _FE.yin_pitch = fixed_yin   # patch AURA-G's front end in place (see docstring)
 def aura_g_transcribe(audio, sr, hop=480, min_gap=0.10, min_dur=0.06, gate=0.02):
     """AURA-G front end -> notes. The stock TranscriptionEngine emits one event per onset *frame* (about 8 per note) and no durations,
     so notes are rebuilt here from the front end's own pitch and onset tracks."""
+    audio = np.nan_to_num(np.asarray(audio, dtype=np.float64), nan=0.0, posinf=0.0, neginf=0.0)   # a NaN/Inf must not poison the filters
     if sr != 48000:
-        audio = signal.resample_poly(np.asarray(audio, dtype=np.float64), 48000, sr); sr = 48000
+        audio = signal.resample_poly(audio, 48000, sr); sr = 48000
     hist = list(FrontEndAnalyzer(sr=sr, hop=hop).process(np.asarray(audio, dtype=np.float64)))
     dt = hop / sr; notes = []; cur = None
     for i, bus in enumerate(hist):
